@@ -6,6 +6,10 @@ Browse and manage files, upload and download, manage sharing and albums, browse 
 
 **Experimental:** this source snapshot has received a targeted security review. Authentication, embedded Docs and bidirectional sync still need end-to-end validation using a disposable account and test folders before a stable release. Windows is not supported by this implementation.
 
+## Roadmap
+
+I also want to build a more practical Proton Drive desktop app for Windows, including photo synchronization. This is a plan, not a feature of the current Linux build.
+
 ## Requirements
 
 - Python 3 with PyGObject, GTK 4, libadwaita and GdkPixbuf system packages.

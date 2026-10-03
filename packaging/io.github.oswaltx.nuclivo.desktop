@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Nuclivo
+Comment=Unofficial GUI for Proton Drive
+Exec=nuclivo
+Icon=folder-remote
+Terminal=false
+Categories=Network;FileTransfer;
+StartupNotify=true

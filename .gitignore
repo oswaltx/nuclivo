@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+*.log
+*.sqlite*
+rclone.conf
+sync.json
+settings.json
+photo-state.json
+sync-status.json
+photo-details.json
