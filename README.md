@@ -1,6 +1,6 @@
 # Nuclivo
 
-An unofficial Linux GUI for the Proton Drive CLI, built with Python, GTK 4 and libadwaita. The current interface is in German. Nuclivo is independent of Proton.
+An unofficial Linux GUI for the Proton Drive CLI, built with Python, GTK 4 and libadwaita. German and English can be selected from the app's main menu under **Sprache / Language**; restart the app to apply a change. By default, Nuclivo follows the system language (German or English). Nuclivo is independent of Proton.
 
 Browse and manage files, upload and download, manage sharing and albums, browse photos, and open Proton Docs through optional WebKitGTK integration. An optional daemon synchronizes folder pairs using rclone bisync and downloads/uploads photos through the official Proton Drive CLI.
 
@@ -9,6 +9,10 @@ Browse and manage files, upload and download, manage sharing and albums, browse 
 ## Roadmap
 
 I also want to build a more practical Proton Drive desktop app for Windows, including photo synchronization. This is a plan, not a feature of the current Linux build.
+
+## Contributing
+
+Contributions are welcome, especially independent security audits and reviews of authentication, local data handling, and synchronization. Please use issues or pull requests for ordinary feedback. If you find a vulnerability that could expose accounts or files, report it privately through GitHub's vulnerability reporting feature when available, so it can be fixed before public disclosure.
 
 ## Requirements
 
@@ -27,7 +31,7 @@ This uses the Proton CLI session already present on your computer. Nuclivo start
 
 The application ID, local paths, rclone remote and optional service all use the Nuclivo name. The earlier installation has separate settings. Stop its sync service before enabling Nuclivo sync so two daemons do not modify the same files.
 
-For an installed copy, place all three Python files in `~/.local/share/nuclivo/`, the `packaging/nuclivo` launcher in `~/.local/bin/`, and the desktop file in `~/.local/share/applications/`. The optional unit in `packaging/` expects that location; place it in `~/.config/systemd/user/` and reload the user systemd manager. Starting it is an explicit opt-in and uses the configured sync pairs.
+For an installed copy, place all four Python files in `~/.local/share/nuclivo/`, the `packaging/nuclivo` launcher in `~/.local/bin/`, and the desktop file in `~/.local/share/applications/`. The optional unit in `packaging/` expects that location; place it in `~/.config/systemd/user/` and reload the user systemd manager. Starting it is an explicit opt-in and uses the configured sync pairs.
 
 Configure the optional `nuclivo-proton` rclone remote using interactive `~/.local/bin/rclone config`. The GUI does not accept account passwords. Custom sharing passwords are managed in Proton's web app because the CLI currently takes them in process arguments.
 

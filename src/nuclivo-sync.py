@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 import shutil
 
 import pyinotify
+from nuclivo_i18n import set_language, system_language, tr as _
 
 HOME = os.path.expanduser("~")
 CONFIG = os.path.join(os.environ.get("XDG_CONFIG_HOME", f"{HOME}/.config"), "nuclivo", "sync.json")
@@ -68,12 +69,14 @@ class Syncer:
         self.reload()
 
     def reload(self):
+        settings = load_json(os.path.join(os.path.dirname(CONFIG), "settings.json"), {})
+        set_language(settings.get("language") or system_language())
         self.cfg = load_json(CONFIG, {})
         self.pairs = [p for p in self.cfg.get("pairs", []) if p.get("local") and p.get("remote")]
         self.photos = self.cfg.get("photos") or {}
         self.poll = max(1, int(self.cfg.get("poll_minutes", 5))) * 60
-        log.info("Konfiguration geladen: %d Ordnerpaar(e), Fotos %s",
-                 len(self.pairs), "an" if self.photos.get("enabled") else "aus")
+        log.info(_("Konfiguration geladen: %d Ordnerpaar(e), Fotos %s"),
+                 len(self.pairs), _("an") if self.photos.get("enabled") else _("aus"))
 
     def set_status(self, key, **kw):
         with self.status_lock:
@@ -99,13 +102,13 @@ class Syncer:
         if first:
             subprocess.run([RCLONE, "mkdir", remote_path(pair["remote"])], capture_output=True)
             args.append("--resync")
-            log.info("Erster Abgleich (resync): %s <-> %s", local, pair["remote"])
+            log.info(_("Erster Abgleich (resync): %s <-> %s"), local, pair["remote"])
         self.set_status(pair["local"], running=True)
         t0 = time.time()
         p = subprocess.run(args, capture_output=True, text=True)
         tail = [l for l in (p.stdout + p.stderr).splitlines() if l.strip()][-6:]
         if p.returncode == 0:
-            log.info("✓ %s synchronisiert (%.0fs)", pair["local"], time.time() - t0)
+            log.info(_("✓ %s synchronisiert (%.0fs)"), pair["local"], time.time() - t0)
             self.set_status(pair["local"], running=False, last=now_iso(), error=None, initialized=True, remote=pair["remote"])
         else:
             msg = next((l for l in reversed(tail) if "ERROR" in l or "Failed" in l), tail[-1] if tail else "?")
@@ -114,7 +117,7 @@ class Syncer:
                 log.error("   %s", l)
             if "--resync" in msg or "must run --resync" in msg:
                 # Do not automatically overwrite a baseline after state loss.
-                log.error("Bisync-Zustand verloren: manuellen Wiederherstellungsabgleich durchführen")
+                log.error(_("Bisync-Zustand verloren: manuellen Wiederherstellungsabgleich durchführen"))
             self.set_status(pair["local"], running=False, error=msg[:300])
 
     # ------------------------------------------------------------ photos
@@ -166,11 +169,11 @@ class Syncer:
         else:
             if not state.get("initialized") and not self.photos.get("download_existing"):
                 skipped = {x["nodeUid"] for x in timeline}
-                log.info("Foto-Sync gestartet: %d vorhandene Fotos werden übersprungen", len(skipped))
+                log.info(_("Foto-Sync gestartet: %d vorhandene Fotos werden übersprungen"), len(skipped))
             known = set(have) | (set() if self.photos.get("download_existing") else skipped)
             new = [x for x in timeline if x["nodeUid"] not in known] if self.photos.get("download", True) else []
             if new:
-                log.info("%d Foto(s) werden heruntergeladen", len(new))
+                log.info(_("%d Foto(s) werden heruntergeladen"), len(new))
                 details = load_json(DETAILS, {})
                 if any(x["nodeUid"] not in details for x in new):
                     details = self.photo_details()
@@ -224,7 +227,7 @@ class Syncer:
                         local_seen[dest] = [os.path.getsize(dest), int(os.path.getmtime(dest))]
                     if not ok or (res or {}).get("failedItems"):
                         err = f"Download: {e or (res or {}).get('failures')}"
-                        log.error("Foto-Download fehlgeschlagen: %s", err)
+                        log.error(_("Foto-Download fehlgeschlagen: %s"), err)
                     done += len(chunk)
                     self.set_status("photos", progress=[done, len(new)])
                     save()
@@ -252,7 +255,7 @@ class Syncer:
                     if local_seen.get(fp) != sig and time.time() - sig[1] > 5:
                         pending.append((fp, sig))
             if pending:
-                log.info("%d lokale Foto(s) werden hochgeladen", len(pending))
+                log.info(_("%d lokale Foto(s) werden hochgeladen"), len(pending))
             for i in range(0, len(pending), 20):
                 chunk = pending[i:i + 20]
                 escaped = [fp.translate(str.maketrans({c: "\\" + c for c in "[]{}*?"})) for fp, _ in chunk]
@@ -262,7 +265,7 @@ class Syncer:
                         local_seen[fp] = sig
                 else:
                     err = f"Upload: {e or (res or {}).get('failures')}"
-                    log.error("Foto-Upload fehlgeschlagen: %s", err)
+                    log.error(_("Foto-Upload fehlgeschlagen: %s"), err)
                 save()
             if pending and not err:
                 # Uploaded photos show up in the timeline; record them so they are not downloaded again.
@@ -278,7 +281,7 @@ class Syncer:
         save()
         self.set_status("photos", running=False, last=now_iso(), error=err)
         if not err:
-            log.info("✓ Fotos synchronisiert")
+            log.info(_("✓ Fotos synchronisiert"))
 
     # ------------------------------------------------------------ scheduling
     def mark_dirty(self, key):
@@ -315,7 +318,7 @@ class Syncer:
                         if pair:
                             self.sync_pair(pair)
                 except Exception as e:  # noqa: BLE001
-                    log.exception("Fehler bei %s", key)
+                    log.exception(_("Fehler bei %s"), key)
                     self.set_status(key, running=False, error=str(e)[:300])
                 finally:
                     # inotify events from our own writes arrive slightly late
@@ -361,7 +364,7 @@ def main():
             os.makedirs(root, exist_ok=True)
             watches[key] = wm.add_watch(root, mask, rec=True, auto_add=True, quiet=True)
         handler.roots = roots
-        log.info("Überwache %d Ordner auf Änderungen", len(roots))
+        log.info(_("Überwache %d Ordner auf Änderungen"), len(roots))
 
     handler = Handler(syncer=syncer, roots=[])
     notifier = pyinotify.ThreadedNotifier(wm, handler)
@@ -370,7 +373,7 @@ def main():
     setup_watches()
 
     def on_usr1(*_):
-        log.info("Manueller Sync angefordert")
+        log.info(_("Manueller Sync angefordert"))
         syncer.force_all = True
         syncer.wake.set()
 

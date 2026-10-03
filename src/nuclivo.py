@@ -19,6 +19,7 @@ import json
 import os
 os.umask(0o077)
 from nuclivo_security import private_dir, save_json, safe_name, is_proton
+from nuclivo_i18n import get_language, set_language, system_language, tr as _
 import urllib.parse
 import shutil
 import subprocess
@@ -36,12 +37,19 @@ SYNC_CONFIG = os.path.join(CONFIG, "sync.json")
 SYNC_UNIT = "nuclivo-sync.service"
 WEB_URL = "https://drive.proton.me"
 
+try:
+    with open(os.path.join(CONFIG, "settings.json")) as _settings_file:
+        _saved_language = json.load(_settings_file).get("language")
+except (OSError, ValueError, AttributeError):
+    _saved_language = None
+set_language(_saved_language or system_language())
+
 _browse_pool = ThreadPoolExecutor(3)
 _transfer_pool = ThreadPoolExecutor(2)
 _thumb_pool = ThreadPoolExecutor(2)
 
-MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
-          "August", "September", "Oktober", "November", "Dezember"]
+MONTHS = [_("Januar"), _("Februar"), _("März"), _("April"), _("Mai"), _("Juni"), _("Juli"),
+          _("August"), _("September"), _("Oktober"), _("November"), _("Dezember")]
 PROTON_DOC_TYPES = ("application/vnd.proton.doc", "application/vnd.proton.sheet")
 
 
@@ -139,9 +147,9 @@ def fmt_time(t):
         return ""
     now = dt.datetime.now().astimezone()
     if t.date() == now.date():
-        return f"Heute, {t:%H:%M}"
+        return _("Heute, {time}").format(time=t.strftime("%H:%M"))
     if t.date() == (now - dt.timedelta(days=1)).date():
-        return f"Gestern, {t:%H:%M}"
+        return _("Gestern, {time}").format(time=t.strftime("%H:%M"))
     if t.year == now.year:
         return f"{t.day}. {MONTHS[t.month - 1][:3]}."
     return f"{t.day}. {MONTHS[t.month - 1][:3]}. {t.year}"
@@ -227,7 +235,7 @@ class Transfer(GObject.Object):
         self.title = title
         self.icon = icon
         self.state = "running"
-        self.detail = "Läuft …"
+        self.detail = _("Läuft …")
 
 
 # ---------------------------------------------------------------- styles
@@ -319,7 +327,7 @@ def entry_dialog(win, heading, body, initial, ok_label, callback):
     dlg = Adw.AlertDialog(heading=heading, body=body)
     entry = Gtk.Entry(text=initial, activates_default=True)
     dlg.set_extra_child(entry)
-    dlg.add_response("cancel", "Abbrechen")
+    dlg.add_response("cancel", _("Abbrechen"))
     dlg.add_response("ok", ok_label)
     dlg.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
     dlg.set_default_response("ok")
@@ -341,7 +349,7 @@ def entry_dialog(win, heading, body, initial, ok_label, callback):
 
 def confirm_dialog(win, heading, body, ok_label, callback, destructive=True):
     dlg = Adw.AlertDialog(heading=heading, body=body)
-    dlg.add_response("cancel", "Abbrechen")
+    dlg.add_response("cancel", _("Abbrechen"))
     dlg.add_response("ok", ok_label)
     dlg.set_response_appearance(
         "ok", Adw.ResponseAppearance.DESTRUCTIVE if destructive else Adw.ResponseAppearance.SUGGESTED)
@@ -364,11 +372,11 @@ def status_page(icon, title, desc="", button=None, cb=None):
 # ---------------------------------------------------------------- browser
 
 SECTIONS = {
-    "my-files": ("/my-files", "Meine Dateien", "folder-symbolic"),
-    "shared-by-me": ("/shared-by-me", "Von mir geteilt", "send-to-symbolic"),
-    "shared-with-me": ("/shared-with-me", "Mit mir geteilt", "folder-publicshare-symbolic"),
-    "devices": ("/devices", "Geräte", "computer-symbolic"),
-    "trash": ("/trash", "Papierkorb", "user-trash-symbolic"),
+    "my-files": ("/my-files", _("Meine Dateien"), "folder-symbolic"),
+    "shared-by-me": ("/shared-by-me", _("Von mir geteilt"), "send-to-symbolic"),
+    "shared-with-me": ("/shared-with-me", _("Mit mir geteilt"), "folder-publicshare-symbolic"),
+    "devices": ("/devices", _("Geräte"), "computer-symbolic"),
+    "trash": ("/trash", _("Papierkorb"), "user-trash-symbolic"),
 }
 
 
@@ -378,7 +386,7 @@ class BrowserPage(Adw.Bin):
         self.win = win
         self.path = "/my-files"
         self.root = "/my-files"
-        self.crumbs = [("/my-files", "Meine Dateien")]
+        self.crumbs = [("/my-files", _("Meine Dateien"))]
         self.cache = {}
         self.items = {}
         self.sort_key = "name"
@@ -406,65 +414,65 @@ class BrowserPage(Adw.Bin):
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
         spinner_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, spacing=12)
         spinner_box.append(Adw.Spinner(width_request=48, height_request=48, halign=Gtk.Align.CENTER))
-        lbl = Gtk.Label(label="Wird geladen …")
+        lbl = Gtk.Label(label=_("Wird geladen …"))
         lbl.add_css_class("dim-label")
         spinner_box.append(lbl)
         self.stack.add_named(spinner_box, "loading")
         self.stack.add_named(scroller, "list")
-        self.empty_page = status_page("folder-open-symbolic", "Dieser Ordner ist leer",
-                                      "Zieh Dateien hierher, um sie hochzuladen.")
+        self.empty_page = status_page("folder-open-symbolic", _("Dieser Ordner ist leer"),
+                                      _("Zieh Dateien hierher, um sie hochzuladen."))
         self.stack.add_named(self.empty_page, "empty")
-        self.error_page = status_page("dialog-warning-symbolic", "Fehler", "",
-                                      "Erneut versuchen", self.reload)
+        self.error_page = status_page("dialog-warning-symbolic", _("Fehler"), "",
+                                      _("Erneut versuchen"), self.reload)
         self.stack.add_named(self.error_page, "error")
-        self.login_page = status_page("system-lock-screen-symbolic", "Nicht angemeldet",
-                                      "Melde dich im Browser bei Proton an.",
-                                      "Anmelden", self.win.login)
+        self.login_page = status_page("system-lock-screen-symbolic", _("Nicht angemeldet"),
+                                      _("Melde dich im Browser bei Proton an."),
+                                      _("Anmelden"), self.win.login)
         self.stack.add_named(self.login_page, "login")
-        self.nomatch_page = status_page("system-search-symbolic", "Keine Treffer")
+        self.nomatch_page = status_page("system-search-symbolic", _("Keine Treffer"))
         self.stack.add_named(self.nomatch_page, "nomatch")
 
         # header
         header = Adw.HeaderBar()
-        self.title = Adw.WindowTitle(title="Meine Dateien")
+        self.title = Adw.WindowTitle(title=_("Meine Dateien"))
         header.set_title_widget(self.title)
-        self.up_btn = Gtk.Button(icon_name="go-up-symbolic", tooltip_text="Übergeordneter Ordner")
+        self.up_btn = Gtk.Button(icon_name="go-up-symbolic", tooltip_text=_("Übergeordneter Ordner"))
         self.up_btn.connect("clicked", lambda *_: self.go_up())
         header.pack_start(self.up_btn)
 
         add_menu = Gio.Menu()
         up = Gio.Menu()
-        up.append("Dateien hochladen …", "win.upload-files")
-        up.append("Ordner hochladen …", "win.upload-folders")
+        up.append(_("Dateien hochladen …"), "win.upload-files")
+        up.append(_("Ordner hochladen …"), "win.upload-folders")
         add_menu.append_section(None, up)
         new = Gio.Menu()
-        new.append("Neuer Ordner …", "win.new-folder")
-        new.append("Neues Dokument", "win.new-doc")
-        new.append("Neue Tabelle", "win.new-sheet")
+        new.append(_("Neuer Ordner …"), "win.new-folder")
+        new.append(_("Neues Dokument"), "win.new-doc")
+        new.append(_("Neue Tabelle"), "win.new-sheet")
         add_menu.append_section(None, new)
         self.add_btn = Gtk.MenuButton(icon_name="list-add-symbolic", menu_model=add_menu,
-                                      tooltip_text="Hinzufügen")
+                                      tooltip_text=_("Hinzufügen"))
         self.add_btn.add_css_class("suggested-action")
         header.pack_start(self.add_btn)
 
-        self.empty_trash_btn = Gtk.Button(label="Papierkorb leeren")
+        self.empty_trash_btn = Gtk.Button(label=_("Papierkorb leeren"))
         self.empty_trash_btn.add_css_class("destructive-action")
         self.empty_trash_btn.connect("clicked", lambda *_: self.empty_trash())
         header.pack_start(self.empty_trash_btn)
 
         sort_menu = Gio.Menu()
-        sort_menu.append("Name", "win.sort::name")
-        sort_menu.append("Zuletzt geändert", "win.sort::date")
-        sort_menu.append("Größe", "win.sort::size")
+        sort_menu.append(_("Name"), "win.sort::name")
+        sort_menu.append(_("Zuletzt geändert"), "win.sort::date")
+        sort_menu.append(_("Größe"), "win.sort::size")
         header.pack_end(Gtk.MenuButton(icon_name="view-sort-descending-symbolic",
-                                       menu_model=sort_menu, tooltip_text="Sortieren"))
-        self.search_btn = Gtk.ToggleButton(icon_name="system-search-symbolic", tooltip_text="Suchen")
+                                       menu_model=sort_menu, tooltip_text=_("Sortieren")))
+        self.search_btn = Gtk.ToggleButton(icon_name="system-search-symbolic", tooltip_text=_("Suchen"))
         header.pack_end(self.search_btn)
-        refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Aktualisieren")
+        refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Aktualisieren"))
         refresh.connect("clicked", lambda *_: self.reload())
         header.pack_end(refresh)
 
-        self.search_entry = Gtk.SearchEntry(placeholder_text="In diesem Ordner suchen", hexpand=True)
+        self.search_entry = Gtk.SearchEntry(placeholder_text=_("In diesem Ordner suchen"), hexpand=True)
         self.search_entry.connect("search-changed", lambda *_: self._refilter())
         self.search_bar = Gtk.SearchBar(child=Adw.Clamp(child=self.search_entry, maximum_size=500))
         self.search_bar.connect_entry(self.search_entry)
@@ -482,7 +490,7 @@ class BrowserPage(Adw.Bin):
         overlay = Gtk.Overlay(child=self.stack)
         self.drop_hint = Gtk.Box(can_target=False, visible=False)
         self.drop_hint.add_css_class("drop-highlight")
-        hint = Adw.StatusPage(icon_name="document-send-symbolic", title="Zum Hochladen loslassen",
+        hint = Adw.StatusPage(icon_name="document-send-symbolic", title=_("Zum Hochladen loslassen"),
                               hexpand=True)
         self.drop_hint.append(hint)
         overlay.add_overlay(self.drop_hint)
@@ -519,8 +527,8 @@ class BrowserPage(Adw.Bin):
         self.title.set_title(self.crumbs[-1][1])
         self.title.set_subtitle("")
         self._update_pathbar()
-        self.empty_page.set_title("Der Papierkorb ist leer" if is_trash else "Dieser Ordner ist leer")
-        self.empty_page.set_description("" if not writable else "Zieh Dateien hierher, um sie hochzuladen.")
+        self.empty_page.set_title(_("Der Papierkorb ist leer") if is_trash else _("Dieser Ordner ist leer"))
+        self.empty_page.set_description("" if not writable else _("Zieh Dateien hierher, um sie hochzuladen."))
         if path in self.cache:
             self._show(self.cache[path])
             self.load(silent=True)
@@ -560,7 +568,7 @@ class BrowserPage(Adw.Bin):
         token, path = self.load_token, self.path
         if not silent:
             self.stack.set_visible_child_name("loading")
-        self.title.set_subtitle("Aktualisiere …" if silent else "")
+        self.title.set_subtitle(_("Aktualisiere …") if silent else "")
 
         def done(ok, data, err):
             if token != self.load_token:
@@ -570,10 +578,10 @@ class BrowserPage(Adw.Bin):
                 if is_auth_error(err):
                     self.stack.set_visible_child_name("login")
                 elif not silent:
-                    self.error_page.set_description(GLib.markup_escape_text(err or "Unbekannter Fehler"))
+                    self.error_page.set_description(GLib.markup_escape_text(err or _("Unbekannter Fehler")))
                     self.stack.set_visible_child_name("error")
                 else:
-                    self.win.toast(f"Aktualisieren fehlgeschlagen: {err}")
+                    self.win.toast(_("Aktualisieren fehlgeschlagen: {error}").format(error=err))
                 return
             use_uid = path in ("/trash", "/shared-with-me")
             names = [((x.get("name") or {}).get("value")) for x in data]
@@ -600,9 +608,9 @@ class BrowserPage(Adw.Bin):
             folders = sum(1 for n in nodes if n.is_folder)
             parts = []
             if folders:
-                parts.append(f"{folders} Ordner")
+                parts.append(_("{count} Ordner").format(count=folders))
             if count - folders:
-                parts.append(f"{count - folders} Dateien")
+                parts.append(_("{count} Dateien").format(count=count - folders))
             self.title.set_subtitle(" · ".join(parts))
         self._refilter()
 
@@ -649,10 +657,10 @@ class BrowserPage(Adw.Bin):
         texts.append(name)
         texts.append(sub)
         row.append(texts)
-        badge = Gtk.Image(icon_name="send-to-symbolic", tooltip_text="Geteilt")
+        badge = Gtk.Image(icon_name="send-to-symbolic", tooltip_text=_("Geteilt"))
         badge.add_css_class("shared-badge")
         row.append(badge)
-        more = Gtk.Button(icon_name="view-more-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Aktionen")
+        more = Gtk.Button(icon_name="view-more-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Aktionen"))
         more.add_css_class("flat")
         more.add_css_class("circular")
         row.append(more)
@@ -697,29 +705,29 @@ class BrowserPage(Adw.Bin):
     def menu_for(self, node):
         menu = Gio.Menu()
         if self.root == "/trash":
-            menu.append_item(menu_item("Wiederherstellen", "win.restore", node.uid))
+            menu.append_item(menu_item(_("Wiederherstellen"), "win.restore", node.uid))
             danger = Gio.Menu()
-            danger.append_item(menu_item("Endgültig löschen", "win.delete", node.uid))
+            danger.append_item(menu_item(_("Endgültig löschen"), "win.delete", node.uid))
             menu.append_section(None, danger)
             return menu
         top = Gio.Menu()
-        top.append_item(menu_item("Öffnen", "win.open", node.uid))
-        top.append_item(menu_item("Herunterladen", "win.download", node.uid))
-        top.append_item(menu_item("Herunterladen nach …", "win.download-to", node.uid))
+        top.append_item(menu_item(_("Öffnen"), "win.open", node.uid))
+        top.append_item(menu_item(_("Herunterladen"), "win.download", node.uid))
+        top.append_item(menu_item(_("Herunterladen nach …"), "win.download-to", node.uid))
         menu.append_section(None, top)
         mid = Gio.Menu()
         if self.root != "/shared-with-me":
-            mid.append_item(menu_item("Teilen …", "win.share", node.uid))
-        mid.append_item(menu_item("Umbenennen …", "win.rename", node.uid))
-        mid.append_item(menu_item("Verschieben nach …", "win.move", node.uid))
-        mid.append_item(menu_item("Kopieren nach …", "win.copy", node.uid))
-        mid.append_item(menu_item("Eigenschaften", "win.info", node.uid))
+            mid.append_item(menu_item(_("Teilen …"), "win.share", node.uid))
+        mid.append_item(menu_item(_("Umbenennen …"), "win.rename", node.uid))
+        mid.append_item(menu_item(_("Verschieben nach …"), "win.move", node.uid))
+        mid.append_item(menu_item(_("Kopieren nach …"), "win.copy", node.uid))
+        mid.append_item(menu_item(_("Eigenschaften"), "win.info", node.uid))
         menu.append_section(None, mid)
         low = Gio.Menu()
         if self.root == "/shared-with-me":
-            low.append_item(menu_item("Freigabe verlassen", "win.leave", node.uid))
+            low.append_item(menu_item(_("Freigabe verlassen"), "win.leave", node.uid))
         else:
-            low.append_item(menu_item("In den Papierkorb", "win.trash", node.uid))
+            low.append_item(menu_item(_("In den Papierkorb"), "win.trash", node.uid))
         menu.append_section(None, low)
         return menu
 
@@ -747,11 +755,11 @@ class BrowserPage(Adw.Bin):
     def empty_trash(self):
         def go():
             def done(ok, _d, err):
-                self.win.toast("Papierkorb geleert" if ok else f"Fehler: {err}")
+                self.win.toast(_("Papierkorb geleert") if ok else _("Fehler: {error}").format(error=err))
                 self.invalidate("/trash")
             cli(["filesystem", "empty-trash"], done)
-        confirm_dialog(self.win, "Papierkorb leeren?",
-                       "Alle Elemente im Papierkorb werden endgültig gelöscht.", "Leeren", go)
+        confirm_dialog(self.win, _("Papierkorb leeren?"),
+                       _("Alle Elemente im Papierkorb werden endgültig gelöscht."), _("Leeren"), go)
 
 
 # ---------------------------------------------------------------- folder picker
@@ -760,7 +768,7 @@ class FolderPicker(Adw.Dialog):
     def __init__(self, win, title, action_label, callback, exclude_uid=None):
         super().__init__(title=title, content_width=460, content_height=560)
         self.win, self.callback, self.exclude = win, callback, exclude_uid
-        self.crumbs = [("/my-files", "Meine Dateien")]
+        self.crumbs = [("/my-files", _("Meine Dateien"))]
         tv = Adw.ToolbarView()
         header = Adw.HeaderBar()
         self.back = Gtk.Button(icon_name="go-previous-symbolic")
@@ -778,7 +786,7 @@ class FolderPicker(Adw.Dialog):
         sc.set_child(Adw.Clamp(child=self.listbox, margin_top=12, margin_bottom=12,
                                margin_start=12, margin_end=12))
         self.stack.add_named(sc, "list")
-        self.stack.add_named(status_page("folder-symbolic", "Keine Unterordner"), "empty")
+        self.stack.add_named(status_page("folder-symbolic", _("Keine Unterordner")), "empty")
         tv.set_content(self.stack)
         bottom = Gtk.Box(margin_top=12, margin_bottom=12, margin_start=12, margin_end=12)
         btn = Gtk.Button(label=action_label, hexpand=True)
@@ -800,7 +808,7 @@ class FolderPicker(Adw.Dialog):
             while (r := self.listbox.get_row_at_index(0)):
                 self.listbox.remove(r)
             if not ok or not isinstance(data, list):
-                self.win.toast(f"Fehler: {err}")
+                self.win.toast(_("Fehler: {error}").format(error=err))
                 return
             nodes = sorted((Node(x, path) for x in data if x.get("uid") != self.exclude),
                            key=lambda n: n.name.casefold())
@@ -831,7 +839,7 @@ class FolderPicker(Adw.Dialog):
 
 class InfoDialog(Adw.Dialog):
     def __init__(self, win, node):
-        super().__init__(title="Eigenschaften", content_width=440)
+        super().__init__(title=_("Eigenschaften"), content_width=440)
         tv = Adw.ToolbarView()
         tv.add_top_bar(Adw.HeaderBar())
         page = Adw.PreferencesPage()
@@ -846,12 +854,12 @@ class InfoDialog(Adw.Dialog):
         g = Adw.PreferencesGroup()
         rev = node.raw.get("activeRevision") or {}
         rows = [
-            ("Typ", "Ordner" if node.is_folder else (node.media_type or "Datei")),
-            ("Größe", fmt_size(node.size) if node.size is not None else "–"),
-            ("Geändert", node.mtime.strftime("%d.%m.%Y, %H:%M") if node.mtime else "–"),
-            ("Erstellt", (parse_time(node.raw.get("creationTime")) or dt.datetime.now()).strftime("%d.%m.%Y, %H:%M")),
-            ("Besitzer", node.owner or "–"),
-            ("Geteilt", "Ja" if node.shared else "Nein"),
+            ("Typ", _("Ordner") if node.is_folder else (node.media_type or "Datei")),
+            (_("Größe"), fmt_size(node.size) if node.size is not None else "–"),
+            (_("Geändert"), node.mtime.strftime("%d.%m.%Y, %H:%M") if node.mtime else "–"),
+            (_("Erstellt"), (parse_time(node.raw.get("creationTime")) or dt.datetime.now()).strftime("%d.%m.%Y, %H:%M")),
+            (_("Besitzer"), node.owner or "–"),
+            (_("Geteilt"), "Ja" if node.shared else "Nein"),
             ("Pfad", node.path),
         ]
         sha = (rev.get("claimedDigests") or {}).get("sha1")
@@ -868,10 +876,10 @@ class InfoDialog(Adw.Dialog):
 
 class ShareDialog(Adw.Dialog):
     def __init__(self, win, node):
-        super().__init__(title="Teilen", content_width=480, content_height=640)
+        super().__init__(title=_("Teilen"), content_width=480, content_height=640)
         self.win, self.node = win, node
         tv = Adw.ToolbarView()
-        tv.add_top_bar(Adw.HeaderBar(title_widget=Adw.WindowTitle(title="Teilen", subtitle=node.name)))
+        tv.add_top_bar(Adw.HeaderBar(title_widget=Adw.WindowTitle(title=_("Teilen"), subtitle=node.name)))
         self.stack = Gtk.Stack()
         self.stack.add_named(Adw.Spinner(), "loading")
         self.page = Adw.PreferencesPage()
@@ -889,7 +897,7 @@ class ShareDialog(Adw.Dialog):
         self.stack.set_visible_child_name("loading")
 
         def done(ok, _d, err):
-            self.win.toast(msg if ok else f"Fehler: {err}")
+            self.win.toast(msg if ok else _("Fehler: {error}").format(error=err))
             self.win.browser.cache.clear()
             self.refresh()
         cli(args, done)
@@ -900,22 +908,22 @@ class ShareDialog(Adw.Dialog):
         self.groups = []
         data = data if ok and isinstance(data, dict) else {}
         if not ok and err and "not shared" not in err.lower():
-            self.win.toast(f"Status unbekannt: {err}")
+            self.win.toast(_("Status unbekannt: {error}").format(error=err))
 
         # public link
-        g = Adw.PreferencesGroup(title="Öffentlicher Link",
-                                 description="Jeder mit dem Link kann zugreifen.")
+        g = Adw.PreferencesGroup(title=_("Öffentlicher Link"),
+                                 description=_("Jeder mit dem Link kann zugreifen."))
         url = data.get("urlAccess")
-        role = Adw.ComboRow(title="Berechtigung", model=Gtk.StringList.new(["Ansehen", "Bearbeiten"]))
-        pw = Adw.ActionRow(title="Link-Passwort", subtitle="Passwortgeschützte Links bitte in Proton Drive im Browser verwalten.")
-        exp = Adw.EntryRow(title="Läuft ab am (JJJJ-MM-TT, optional)")
+        role = Adw.ComboRow(title=_("Berechtigung"), model=Gtk.StringList.new(["Ansehen", _("Bearbeiten")]))
+        pw = Adw.ActionRow(title=_("Link-Passwort"), subtitle=_("Passwortgeschützte Links bitte in Proton Drive im Browser verwalten."))
+        exp = Adw.EntryRow(title=_("Läuft ab am (JJJJ-MM-TT, optional)"))
         if url:
             link = Adw.ActionRow(title="Link", subtitle=GLib.markup_escape_text(url.get("url", "")),
                                  subtitle_selectable=True)
-            copy = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Kopieren")
+            copy = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Kopieren"))
             copy.add_css_class("flat")
             copy.connect("clicked", lambda *_: (copy_text(self, url.get("url", "")),
-                                                self.win.toast("Link kopiert")))
+                                                self.win.toast(_("Link kopiert"))))
             link.add_suffix(copy)
             g.add(link)
             n = url.get("numberOfInitializedDownloads")
@@ -929,45 +937,45 @@ class ShareDialog(Adw.Dialog):
             args = ["sharing", "set-url", "--role", ["viewer", "editor"][role.get_selected()]]
             if exp.get_text().strip():
                 args += ["--expiration", exp.get_text().strip()]
-            self._run(args + [self.node.path], "Link gespeichert")
+            self._run(args + [self.node.path], _("Link gespeichert"))
 
-        b = Adw.ButtonRow(title="Link aktualisieren" if url else "Link erstellen",
+        b = Adw.ButtonRow(title=_("Link aktualisieren") if url else _("Link erstellen"),
                           start_icon_name="insert-link-symbolic")
         b.add_css_class("suggested-action")
         b.connect("activated", set_url)
         g.add(b)
         if url:
-            rm = Adw.ButtonRow(title="Link löschen", start_icon_name="user-trash-symbolic")
+            rm = Adw.ButtonRow(title=_("Link löschen"), start_icon_name="user-trash-symbolic")
             rm.add_css_class("destructive-action")
             rm.connect("activated", lambda *_: self._run(["sharing", "remove-url", self.node.path],
-                                                         "Link gelöscht"))
+                                                         _("Link gelöscht")))
             g.add(rm)
         self.page.add(g)
         self.groups.append(g)
 
         # people
-        g2 = Adw.PreferencesGroup(title="Personen")
+        g2 = Adw.PreferencesGroup(title=_("Personen"))
         people = []
         for kind in ("members", "protonInvitations", "nonProtonInvitations"):
             for p in data.get(kind) or []:
                 email = (p.get("inviteeEmail") or p.get("email") or p.get("memberEmail")
                          or (p.get("invitee") or {}).get("email") or "?")
                 people.append((email, p.get("role", ""), kind != "members"))
-        roles_de = {"viewer": "Ansehen", "editor": "Bearbeiten", "admin": "Verwalten"}
+        roles_de = {"viewer": "Ansehen", "editor": _("Bearbeiten"), "admin": _("Verwalten")}
         for email, r, pending in people:
             row = Adw.ActionRow(title=GLib.markup_escape_text(email),
                                 subtitle=roles_de.get(r, r) + (" · Einladung offen" if pending else ""))
             row.add_prefix(Adw.Avatar(size=32, text=email, show_initials=True))
-            x = Gtk.Button(icon_name="list-remove-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Entfernen")
+            x = Gtk.Button(icon_name="list-remove-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Entfernen"))
             x.add_css_class("flat")
             x.connect("clicked", lambda _b, e=email: self._run(
-                ["sharing", "remove", "-e", e, self.node.path], f"{e} entfernt"))
+                ["sharing", "remove", "-e", e, self.node.path], _("{email} entfernt").format(email=e)))
             row.add_suffix(x)
             g2.add(row)
-        email = Adw.EntryRow(title="E-Mail-Adresse")
-        prole = Adw.ComboRow(title="Berechtigung",
-                             model=Gtk.StringList.new(["Ansehen", "Bearbeiten", "Verwalten"]))
-        msg = Adw.EntryRow(title="Nachricht (optional)")
+        email = Adw.EntryRow(title=_("E-Mail-Adresse"))
+        prole = Adw.ComboRow(title=_("Berechtigung"),
+                             model=Gtk.StringList.new(["Ansehen", _("Bearbeiten"), _("Verwalten")]))
+        msg = Adw.EntryRow(title=_("Nachricht (optional)"))
         g2.add(email)
         g2.add(prole)
         g2.add(msg)
@@ -979,16 +987,16 @@ class ShareDialog(Adw.Dialog):
             args = ["sharing", "invite", "-u", addr, "-r", ["viewer", "editor", "admin"][prole.get_selected()]]
             if msg.get_text().strip():
                 args += ["-m", msg.get_text().strip()]
-            self._run(args + [self.node.path], f"{addr} eingeladen")
+            self._run(args + [self.node.path], _("{email} eingeladen").format(email=addr))
 
-        inv = Adw.ButtonRow(title="Einladen", start_icon_name="contact-new-symbolic")
+        inv = Adw.ButtonRow(title=_("Einladen"), start_icon_name="contact-new-symbolic")
         inv.connect("activated", invite)
         g2.add(inv)
         if people or url:
-            stop = Adw.ButtonRow(title="Alle Freigaben beenden", start_icon_name="action-unavailable-symbolic")
+            stop = Adw.ButtonRow(title=_("Alle Freigaben beenden"), start_icon_name="action-unavailable-symbolic")
             stop.add_css_class("destructive-action")
             stop.connect("activated", lambda *_: self._run(["sharing", "remove", "-a", self.node.path],
-                                                           "Freigaben beendet"))
+                                                           _("Freigaben beendet")))
             g2.add(stop)
         self.page.add(g2)
         self.groups.append(g2)
@@ -1332,20 +1340,20 @@ class PhotosPage(Adw.Bin):
         self.details = load_json_file(DETAILS_PATH, {})
         self.months = []
         header = Adw.HeaderBar()
-        self.title = Adw.WindowTitle(title="Fotos")
+        self.title = Adw.WindowTitle(title=_("Fotos"))
         header.set_title_widget(self.title)
-        up = Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Fotos hochladen")
+        up = Gtk.Button(icon_name="list-add-symbolic", tooltip_text=_("Fotos hochladen"))
         up.add_css_class("suggested-action")
         up.connect("clicked", lambda *_: self.win.upload_photos())
         header.pack_start(up)
         menu = Gio.Menu()
-        menu.append("Vorschauen im Hintergrund laden", "win.prefetch")
-        menu.append("Fotos offline verfügbar", "win.photos-offline")
+        menu.append(_("Vorschauen im Hintergrund laden"), "win.prefetch")
+        menu.append(_("Fotos offline verfügbar"), "win.photos-offline")
         sec = Gio.Menu()
-        sec.append("Vorschau-Cache leeren", "win.clear-thumbs")
+        sec.append(_("Vorschau-Cache leeren"), "win.clear-thumbs")
         menu.append_section(None, sec)
-        header.pack_end(Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, tooltip_text="Optionen"))
-        refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Aktualisieren")
+        header.pack_end(Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, tooltip_text=_("Optionen")))
+        refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Aktualisieren"))
         refresh.connect("clicked", lambda *_: self.load())
         header.pack_end(refresh)
         self.month_list = Gtk.StringList()
@@ -1356,8 +1364,8 @@ class PhotosPage(Adw.Bin):
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
         self.stack.add_named(Adw.Spinner(), "loading")
         self.stack.add_named(self.grid, "grid")
-        self.stack.add_named(status_page("image-x-generic-symbolic", "Keine Fotos"), "empty")
-        self.err = status_page("dialog-warning-symbolic", "Fehler", "", "Erneut versuchen", self.load)
+        self.stack.add_named(status_page("image-x-generic-symbolic", _("Keine Fotos")), "empty")
+        self.err = status_page("dialog-warning-symbolic", _("Fehler"), "", _("Erneut versuchen"), self.load)
         self.stack.add_named(self.err, "error")
 
         # progress bar at the bottom: thumbnail prefetch + offline download by the sync daemon
@@ -1411,13 +1419,13 @@ class PhotosPage(Adw.Bin):
             frac = pf.done / pf.total
             self.pf_bar.set_fraction(frac)
             rate = f" · ~{GLib.format_size(int(pf.rate))}/s" if pf.rate and not pf.paused else ""
-            state = "pausiert" if pf.paused else ("wartet, sichtbare Fotos zuerst" if _grid_activity[0] else
-                                                   "gedrosselt auf ~50 % der Leitung")
-            self.pf_label.set_text(f"Vorschauen: {pf.done:,} von {pf.total:,}".replace(",", ".") +
+            state = _("pausiert") if pf.paused else (_("wartet, sichtbare Fotos zuerst") if _grid_activity[0] else
+                                                     _("gedrosselt auf ~50 % der Leitung"))
+            self.pf_label.set_text(_("Vorschauen: {done} von {total}").format(done=f"{pf.done:,}".replace(",", "."), total=f"{pf.total:,}".replace(",", ".")) +
                                    f" · {state}{rate}")
             self.pf_btn.set_icon_name("media-playback-start-symbolic" if pf.paused else
                                       "media-playback-pause-symbolic")
-            self.pf_btn.set_tooltip_text("Fortsetzen" if pf.paused else "Pausieren")
+            self.pf_btn.set_tooltip_text(_("Fortsetzen") if pf.paused else _("Pausieren"))
         self.grid.repaint()
         self._sync_bottom_visibility()
         self.win.update_photo_activity()
@@ -1429,8 +1437,8 @@ class PhotosPage(Adw.Bin):
         if prog:
             done, total = prog
             self.off_bar.set_fraction(done / max(total, 1))
-            self.off_label.set_text(f"Fotos werden offline gespeichert: {done:,} von {total:,}".replace(",", ".") +
-                                    " · gedrosselt auf ~50 %")
+            self.off_label.set_text(_("Fotos werden offline gespeichert: {done} von {total}").format(done=f"{done:,}".replace(",", "."), total=f"{total:,}".replace(",", ".")) +
+                                    _(" · gedrosselt auf ~50 %"))
         self._sync_bottom_visibility()
         if self.get_mapped():
             GLib.timeout_add_seconds(5, lambda: self._poll_offline() and False)
@@ -1456,7 +1464,7 @@ class PhotosPage(Adw.Bin):
             for x in data:
                 d = self.details.get(x["nodeUid"], {})
                 self.photos.append(Photo(x["nodeUid"], x.get("captureTime"), d.get("n"), d.get("m")))
-            self.title.set_subtitle(f"{len(self.photos):,} Fotos".replace(",", "."))
+            self.title.set_subtitle(_("{count} Fotos").format(count=f"{len(self.photos):,}".replace(",", ".")))
             self._group()
             self.prefetcher.set_photos(self.photos)
             self._refresh_details()
@@ -1471,7 +1479,7 @@ class PhotosPage(Adw.Bin):
         self.months = sorted(months.items(), reverse=True)
         sel = self.month_dd.get_selected()
         self.month_list.splice(0, self.month_list.get_n_items(),
-                               [f"{MONTHS[m - 1]} {y} · {len(ps)}" if y else f"Ohne Datum · {len(ps)}"
+                               [f"{MONTHS[m - 1]} {y} · {len(ps)}" if y else _("Ohne Datum · {count}").format(count=len(ps))
                                 for (y, m), ps in self.months])
         if self.months:
             self.month_dd.set_selected(min(sel, len(self.months) - 1) if sel != Gtk.INVALID_LIST_POSITION else 0)
@@ -1530,36 +1538,37 @@ class SetupDialog(Adw.Dialog):
     """First-run choices for photos."""
 
     def __init__(self, win):
-        super().__init__(title="Willkommen", content_width=520, can_close=False)
+        super().__init__(title=_("Willkommen"), content_width=520, can_close=False)
         self.win = win
         tv = Adw.ToolbarView()
         tv.add_top_bar(Adw.HeaderBar(show_end_title_buttons=False))
         page = Adw.PreferencesPage()
-        hero = Adw.StatusPage(icon_name="folder-remote-symbolic", title="Willkommen bei Nuclivo",
-                              description="Zwei Fragen zu deinen Fotos. Beides kannst du später "
-                                          "jederzeit oben rechts im Fotos-Menü ändern.")
+        hero = Adw.StatusPage(icon_name="folder-remote-symbolic", title=_("Willkommen bei Nuclivo"),
+                              description=_("Zwei Fragen zu deinen Fotos. Beides kannst du später "
+                                            "jederzeit oben rechts im Fotos-Menü ändern."))
         hero.add_css_class("compact")
         g0 = Adw.PreferencesGroup()
         g0.add(hero)
         page.add(g0)
         count, size = win.photos.library_size()
-        count_txt = f"alle {count:,} Fotos".replace(",", ".") if count else "alle Fotos"
+        count_txt = _("alle {count} Fotos").format(count=f"{count:,}".replace(",", ".")) if count else _("alle Fotos")
         size_txt = f" (≈ {GLib.format_size(size)})" if size else ""
         g = Adw.PreferencesGroup()
         self.prefetch = Adw.SwitchRow(
-            title="Vorschauen im Hintergrund laden",
-            subtitle="Damit Monate sofort erscheinen. Braucht nur wenig Platz, lädt aber einmalig jedes Foto. "
-                     "Gedrosselt auf ~50 % der Leitung, nur solange Nuclivo offen ist.")
+            title=_("Vorschauen im Hintergrund laden"),
+            subtitle=_("Damit Monate sofort erscheinen. Braucht nur wenig Platz, lädt aber einmalig jedes Foto. "
+                       "Gedrosselt auf ~50 % der Leitung, nur solange Nuclivo offen ist."))
         self.prefetch.set_active(True)
         self.offline = Adw.SwitchRow(
-            title="Fotos offline verfügbar machen",
-            subtitle=f"Speichert {count_txt}{size_txt} in {PHOTOS_LOCAL_DEFAULT} und hält sie aktuell. "
-                     "Vorschauen entstehen dann direkt aus diesen Dateien.")
+            title=_("Fotos offline verfügbar machen"),
+            subtitle=_("Speichert {count}{size} in {folder} und hält sie aktuell. "
+                       "Vorschauen entstehen dann direkt aus diesen Dateien.").format(
+                           count=count_txt, size=size_txt, folder=PHOTOS_LOCAL_DEFAULT))
         g.add(self.prefetch)
         g.add(self.offline)
         page.add(g)
         g2 = Adw.PreferencesGroup()
-        go = Adw.ButtonRow(title="Los geht’s")
+        go = Adw.ButtonRow(title=_("Los geht’s"))
         go.add_css_class("suggested-action")
         go.connect("activated", self._done)
         g2.add(go)
@@ -1582,12 +1591,12 @@ class AlbumsPage(Adw.Bin):
         self.loaded = False
         self.nav = Adw.NavigationView()
         header = Adw.HeaderBar()
-        new = Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Neues Album")
+        new = Gtk.Button(icon_name="list-add-symbolic", tooltip_text=_("Neues Album"))
         new.add_css_class("suggested-action")
-        new.connect("clicked", lambda *_: entry_dialog(self.win, "Neues Album", "", "", "Erstellen",
+        new.connect("clicked", lambda *_: entry_dialog(self.win, _("Neues Album"), "", "", _("Erstellen"),
                                                        self._create))
         header.pack_start(new)
-        refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Aktualisieren")
+        refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Aktualisieren"))
         refresh.connect("clicked", lambda *_: self.load())
         header.pack_end(refresh)
         self.flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, column_spacing=12, row_spacing=12,
@@ -1600,11 +1609,11 @@ class AlbumsPage(Adw.Bin):
         sc = Gtk.ScrolledWindow(vexpand=True)
         sc.set_child(self.flow)
         self.stack.add_named(sc, "list")
-        self.stack.add_named(status_page("folder-pictures-symbolic", "Keine Alben"), "empty")
+        self.stack.add_named(status_page("folder-pictures-symbolic", _("Keine Alben")), "empty")
         tv = Adw.ToolbarView()
         tv.add_top_bar(header)
         tv.set_content(self.stack)
-        self.nav.add(Adw.NavigationPage(child=tv, title="Alben", tag="albums"))
+        self.nav.add(Adw.NavigationPage(child=tv, title=_("Alben"), tag="albums"))
         self.set_child(self.nav)
 
     def ensure_loaded(self):
@@ -1619,7 +1628,7 @@ class AlbumsPage(Adw.Bin):
             while (c := self.flow.get_child_at_index(0)):
                 self.flow.remove(c)
             if not ok or not isinstance(data, list):
-                self.win.toast(f"Alben: {err}")
+                self.win.toast(_("Alben: {error}").format(error=err))
                 self.stack.set_visible_child_name("empty")
                 return
             for a in sorted(data, key=lambda a: (a.get("name") or {}).get("value", "").casefold()):
@@ -1650,12 +1659,12 @@ class AlbumsPage(Adw.Bin):
 
     def _album_menu(self, node, widget, x, y):
         m = Gio.Menu()
-        m.append_item(menu_item("Umbenennen …", "win.album-rename", node.path))
-        m.append_item(menu_item("Album löschen", "win.album-delete", node.path))
+        m.append_item(menu_item(_("Umbenennen …"), "win.album-rename", node.path))
+        m.append_item(menu_item(_("Album löschen"), "win.album-delete", node.path))
         show_menu(m, widget, x, y)
 
     def _create(self, name):
-        cli(["album", "create", name], lambda ok, d, e: (self.win.toast("Album erstellt" if ok else f"Fehler: {e}"),
+        cli(["album", "create", name], lambda ok, d, e: (self.win.toast(_("Album erstellt") if ok else _("Fehler: {error}").format(error=e)),
                                                           self.load()))
 
     def open_album(self, node):
@@ -1663,7 +1672,7 @@ class AlbumsPage(Adw.Bin):
         stack = Gtk.Stack()
         stack.add_named(Adw.Spinner(), "loading")
         stack.add_named(grid, "grid")
-        stack.add_named(status_page("image-x-generic-symbolic", "Album ist leer"), "empty")
+        stack.add_named(status_page("image-x-generic-symbolic", _("Album ist leer")), "empty")
         tv = Adw.ToolbarView()
         header = Adw.HeaderBar()
         title = Adw.WindowTitle(title=node.name)
@@ -1674,7 +1683,7 @@ class AlbumsPage(Adw.Bin):
 
         def done(ok, data, err):
             if not ok or not isinstance(data, list):
-                self.win.toast(f"Fehler: {err}")
+                self.win.toast(_("Fehler: {error}").format(error=err))
                 stack.set_visible_child_name("empty")
                 return
             photos = [Photo(x.get("uid") or x.get("nodeUid"),
@@ -1682,7 +1691,7 @@ class AlbumsPage(Adw.Bin):
                             or x.get("creationTime"),
                             (x.get("name") or {}).get("value"), x.get("mediaType"),
                             source="/photos") for x in data]
-            title.set_subtitle(f"{len(photos)} Fotos")
+            title.set_subtitle(_("{count} Fotos").format(count=len(photos)))
             grid.set_photos(photos)
             stack.set_visible_child_name("grid" if photos else "empty")
 
@@ -1698,8 +1707,8 @@ class SyncPage(Adw.Bin):
         self.cfg = {}
         self.dynamic = []
         self._updating = False
-        header = Adw.HeaderBar(title_widget=Adw.WindowTitle(title="Synchronisation"))
-        refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Aktualisieren")
+        header = Adw.HeaderBar(title_widget=Adw.WindowTitle(title=_("Synchronisation")))
+        refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Aktualisieren"))
         refresh.connect("clicked", lambda *_: self.refresh())
         header.pack_end(refresh)
         self.page = Adw.PreferencesPage()
@@ -1713,7 +1722,7 @@ class SyncPage(Adw.Bin):
         self.hero_sub = Gtk.Label(wrap=True, justify=Gtk.Justification.CENTER)
         self.hero_sub.add_css_class("dim-label")
         btns = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER, margin_top=8)
-        self.sync_btn = Gtk.Button(label="Jetzt synchronisieren")
+        self.sync_btn = Gtk.Button(label=_("Jetzt synchronisieren"))
         self.sync_btn.add_css_class("pill")
         self.sync_btn.add_css_class("suggested-action")
         self.sync_btn.connect("clicked", lambda *_: self.sync_now())
@@ -1730,7 +1739,7 @@ class SyncPage(Adw.Bin):
 
         # account
         self.acct_group = Adw.PreferencesGroup(
-            title="Konto", description="Der Datei-Sync nutzt rclone und braucht eine eigene Anmeldung.")
+            title=_("Konto"), description=_("Der Datei-Sync nutzt rclone und braucht eine eigene Anmeldung."))
         self.acct_row = Adw.ActionRow(title="rclone-Verbindung")
         self.acct_btn = Gtk.Button(valign=Gtk.Align.CENTER)
         self.acct_btn.connect("clicked", lambda *_: RcloneLoginDialog(self.win, self.refresh).present(self.win))
@@ -1740,33 +1749,33 @@ class SyncPage(Adw.Bin):
 
         # pairs
         self.pairs_group = Adw.PreferencesGroup(
-            title="Ordner", description="Diese Ordner werden in beide Richtungen abgeglichen.")
-        add = Gtk.Button(icon_name="list-add-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Ordner hinzufügen")
+            title=_("Ordner"), description=_("Diese Ordner werden in beide Richtungen abgeglichen."))
+        add = Gtk.Button(icon_name="list-add-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Ordner hinzufügen"))
         add.add_css_class("flat")
         add.connect("clicked", lambda *_: self.add_pair())
         self.pairs_group.set_header_suffix(add)
         self.page.add(self.pairs_group)
 
         # photos
-        pg = Adw.PreferencesGroup(title="Fotos",
-                                  description="Proton-Fotos mit einem lokalen Ordner abgleichen. "
-                                              "Löschungen werden nie übertragen.")
-        self.photo_offline = Adw.SwitchRow(title="Alle Fotos offline verfügbar",
-                                           subtitle="Lädt die ganze Mediathek, gedrosselt auf ~50 % der Leitung")
+        pg = Adw.PreferencesGroup(title=_("Fotos"),
+                                  description=_("Proton-Fotos mit einem lokalen Ordner abgleichen. "
+                                                "Löschungen werden nie übertragen."))
+        self.photo_offline = Adw.SwitchRow(title=_("Alle Fotos offline verfügbar"),
+                                           subtitle=_("Lädt die ganze Mediathek, gedrosselt auf ~50 % der Leitung"))
         self.photo_offline.connect("notify::active", lambda r, _p: None if self._updating
                                    else self.win.set_photos_offline(r.get_active()))
         pg.add(self.photo_offline)
-        self.photo_enable = Adw.SwitchRow(title="Fotos synchronisieren")
-        self.photo_dir = Adw.ActionRow(title="Lokaler Ordner")
-        pick = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Ändern")
+        self.photo_enable = Adw.SwitchRow(title=_("Fotos synchronisieren"))
+        self.photo_dir = Adw.ActionRow(title=_("Lokaler Ordner"))
+        pick = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Ändern"))
         pick.add_css_class("flat")
         pick.connect("clicked", lambda *_: self.pick_photo_dir())
         self.photo_dir.add_suffix(pick)
-        self.photo_down = Adw.SwitchRow(title="Neue Fotos aus Proton herunterladen",
-                                        subtitle="Sortiert nach Jahr/Monat")
-        self.photo_existing = Adw.SwitchRow(title="Auch alle bisherigen Fotos herunterladen",
-                                            subtitle="Sonst nur Fotos ab dem Einschalten")
-        self.photo_up = Adw.SwitchRow(title="Neue Fotos aus dem Ordner hochladen")
+        self.photo_down = Adw.SwitchRow(title=_("Neue Fotos aus Proton herunterladen"),
+                                        subtitle=_("Sortiert nach Jahr/Monat"))
+        self.photo_existing = Adw.SwitchRow(title=_("Auch alle bisherigen Fotos herunterladen"),
+                                            subtitle=_("Sonst nur Fotos ab dem Einschalten"))
+        self.photo_up = Adw.SwitchRow(title=_("Neue Fotos aus dem Ordner hochladen"))
         for r in (self.photo_enable, self.photo_dir, self.photo_down, self.photo_existing, self.photo_up):
             pg.add(r)
         for r, key in ((self.photo_enable, "enabled"), (self.photo_down, "download"),
@@ -1776,15 +1785,15 @@ class SyncPage(Adw.Bin):
         self.page.add(pg)
 
         # interval
-        ig = Adw.PreferencesGroup(title="Abfrage")
+        ig = Adw.PreferencesGroup(title=_("Abfrage"))
         self.interval = Adw.SpinRow.new_with_range(1, 120, 1)
-        self.interval.set_title("Änderungen in Proton prüfen alle … Minuten")
-        self.interval.set_subtitle("Lokale Änderungen werden sofort übertragen")
+        self.interval.set_title(_("Änderungen in Proton prüfen alle … Minuten"))
+        self.interval.set_subtitle(_("Lokale Änderungen werden sofort übertragen"))
         self.interval.connect("notify::value", self._interval_changed)
         ig.add(self.interval)
         self.page.add(ig)
 
-        lg = Adw.PreferencesGroup(title="Protokoll")
+        lg = Adw.PreferencesGroup(title=_("Protokoll"))
         self.log = Gtk.Label(xalign=0, yalign=0, wrap=True, wrap_mode=2, selectable=True)
         self.log.add_css_class("log-view")
         self.log.add_css_class("card")
@@ -1842,12 +1851,12 @@ class SyncPage(Adw.Bin):
 
     def _status_suffix(self, st):
         if st.get("running"):
-            return "Synchronisiert gerade …", None
+            return _("Synchronisiert gerade …"), None
         if st.get("error"):
-            return f"Fehler: {st['error']}", "dialog-error-symbolic"
+            return _("Fehler: {error}").format(error=st['error']), "dialog-error-symbolic"
         if st.get("last"):
-            return f"Zuletzt {fmt_time(parse_time(st['last']))}", "object-select-symbolic"
-        return "Wartet auf ersten Abgleich", None
+            return _("Zuletzt {time}").format(time=fmt_time(parse_time(st['last']))), "object-select-symbolic"
+        return _("Wartet auf ersten Abgleich"), None
 
     def _apply(self, state, log, connected, status):
         self.cfg = self._load_cfg()
@@ -1866,11 +1875,11 @@ class SyncPage(Adw.Bin):
                 r.add_suffix(Adw.Spinner())
             elif icon:
                 r.add_suffix(Gtk.Image(icon_name=icon))
-            ob = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Öffnen")
+            ob = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Öffnen"))
             ob.add_css_class("flat")
             ob.connect("clicked", lambda _b, d=p["local"]: open_local(os.path.expanduser(d)))
             rm = Gtk.Button(icon_name="list-remove-symbolic", valign=Gtk.Align.CENTER,
-                            tooltip_text="Nicht mehr synchronisieren")
+                            tooltip_text=_("Nicht mehr synchronisieren"))
             rm.add_css_class("flat")
             rm.connect("clicked", lambda _b, pp=p: self.remove_pair(pp))
             r.add_suffix(ob)
@@ -1878,7 +1887,7 @@ class SyncPage(Adw.Bin):
             self.pairs_group.add(r)
             self.dynamic.append(r)
         if not self.cfg.get("pairs"):
-            r = Adw.ActionRow(title="Noch keine Ordner", subtitle="Mit + einen Ordner hinzufügen")
+            r = Adw.ActionRow(title=_("Noch keine Ordner"), subtitle=_("Mit + einen Ordner hinzufügen"))
             self.pairs_group.add(r)
             self.dynamic.append(r)
 
@@ -1886,8 +1895,10 @@ class SyncPage(Adw.Bin):
         self.photo_offline.set_active(self.win.photos_offline())
         prog = status.get("photos", {}).get("progress")
         self.photo_offline.set_subtitle(
-            f"Wird gespeichert: {prog[0]:,} von {prog[1]:,} · gedrosselt".replace(",", ".") if prog else
-            "Lädt die ganze Mediathek, gedrosselt auf ~50 % der Leitung")
+            _("Wird gespeichert: {done} von {total} · gedrosselt").format(
+                done=f"{prog[0]:,}".replace(",", "."),
+                total=f"{prog[1]:,}".replace(",", ".")) if prog else
+            _("Lädt die ganze Mediathek, gedrosselt auf ~50 % der Leitung"))
         self.photo_enable.set_active(bool(ph.get("enabled")))
         self.photo_down.set_active(ph.get("download", True))
         self.photo_existing.set_active(bool(ph.get("download_existing")))
@@ -1901,8 +1912,8 @@ class SyncPage(Adw.Bin):
         self.interval.set_value(self.cfg.get("poll_minutes", 5))
         self._updating = False
 
-        self.acct_row.set_subtitle("Verbunden" if connected else "Nicht verbunden")
-        self.acct_btn.set_label("Neu verbinden" if connected else "Verbinden")
+        self.acct_row.set_subtitle(_("Verbunden") if connected else _("Nicht verbunden"))
+        self.acct_btn.set_label(_("Neu verbinden") if connected else _("Verbinden"))
         for c in ("suggested-action",):
             self.acct_btn.remove_css_class(c)
         if not connected:
@@ -1914,37 +1925,36 @@ class SyncPage(Adw.Bin):
         for c in ("sync-ok", "sync-off"):
             self.hero.remove_css_class(c)
         self.hero.add_css_class("sync-ok" if active and anything else "sync-off")
-        self.power_btn.set_label("Pausieren" if active else "Starten")
+        self.power_btn.set_label(_("Pausieren") if active else _("Starten"))
         self.power_btn.set_visible(anything)
         self.sync_btn.set_visible(active and anything)
         self.sync_btn.set_sensitive(not running)
         if not anything:
             self.hero_icon.set_from_icon_name("view-refresh-symbolic")
-            self.hero_title.set_text("Noch nicht eingerichtet")
-            self.hero_sub.set_text("Füge unten einen Ordner hinzu oder schalte den Foto-Sync ein.")
+            self.hero_title.set_text(_("Noch nicht eingerichtet"))
+            self.hero_sub.set_text(_("Füge unten einen Ordner hinzu oder schalte den Foto-Sync ein."))
         elif not active:
             self.hero_icon.set_from_icon_name("media-playback-pause-symbolic")
-            self.hero_title.set_text("Pausiert")
-            self.hero_sub.set_text("Der Sync-Dienst läuft gerade nicht.")
+            self.hero_title.set_text(_("Pausiert"))
+            self.hero_sub.set_text(_("Der Sync-Dienst läuft gerade nicht."))
         elif running:
             self.hero_icon.set_from_icon_name("view-refresh-symbolic")
-            self.hero_title.set_text("Synchronisiert …")
-            self.hero_sub.set_text("Änderungen werden gerade abgeglichen.")
+            self.hero_title.set_text(_("Synchronisiert …"))
+            self.hero_sub.set_text(_("Änderungen werden gerade abgeglichen."))
         elif any(s.get("error") for s in status.values()):
             self.hero_icon.set_from_icon_name("dialog-warning-symbolic")
-            self.hero_title.set_text("Live-Sync läuft, mit Fehlern")
-            self.hero_sub.set_text("Details stehen unten im Protokoll.")
+            self.hero_title.set_text(_("Live-Sync läuft, mit Fehlern"))
+            self.hero_sub.set_text(_("Details stehen unten im Protokoll."))
         else:
             self.hero_icon.set_from_icon_name("object-select-symbolic")
-            self.hero_title.set_text("Alles synchron")
-            self.hero_sub.set_text("Lokale Änderungen werden sofort übertragen, "
-                                   f"Proton wird alle {self.cfg.get('poll_minutes', 5)} Minuten geprüft.")
-        self.log.set_text("\n".join(log.strip().splitlines()[-30:]) or "Noch keine Einträge.")
+            self.hero_title.set_text(_("Alles synchron"))
+            self.hero_sub.set_text(_("Lokale Änderungen werden sofort übertragen, Proton wird alle {minutes} Minuten geprüft.").format(minutes=self.cfg.get("poll_minutes", 5)))
+        self.log.set_text("\n".join(log.strip().splitlines()[-30:]) or _("Noch keine Einträge."))
         return False
 
     # ---- editing
     def add_pair(self):
-        d = Gtk.FileDialog(title="Lokalen Ordner wählen")
+        d = Gtk.FileDialog(title=_("Lokalen Ordner wählen"))
 
         def got_local(dlg, res):
             try:
@@ -1956,24 +1966,24 @@ class SyncPage(Adw.Bin):
             def got_remote(remote):
                 pairs = self.cfg.setdefault("pairs", [])
                 if any(p["local"] == local for p in pairs):
-                    self.win.toast("Dieser Ordner wird schon synchronisiert")
+                    self.win.toast(_("Dieser Ordner wird schon synchronisiert"))
                     return
                 pairs.append({"local": local, "remote": remote})
                 self._save_cfg()
                 self._ensure_running()
-                self.win.toast("Ordner hinzugefügt – erster Abgleich startet")
+                self.win.toast(_("Ordner hinzugefügt – erster Abgleich startet"))
                 self.refresh()
 
             def choose_remote():
-                picker = FolderPicker(self.win, f"Ziel für „{name}“ in Drive",
-                                      "Diesen Ordner verwenden", got_remote)
+                picker = FolderPicker(self.win, _("Ziel für „{name}“ in Drive").format(name=name),
+                                      _("Diesen Ordner verwenden"), got_remote)
                 picker.present(self.win)
 
-            dlg = Adw.AlertDialog(heading="Ziel in Proton Drive",
-                                  body=f"Wohin soll „{name}“ synchronisiert werden?")
-            dlg.add_response("cancel", "Abbrechen")
-            dlg.add_response("pick", "Bestehenden Ordner wählen …")
-            dlg.add_response("new", f"Neu: Meine Dateien/{name}")
+            dlg = Adw.AlertDialog(heading=_("Ziel in Proton Drive"),
+                                  body=_("Wohin soll „{name}“ synchronisiert werden?").format(name=name))
+            dlg.add_response("cancel", _("Abbrechen"))
+            dlg.add_response("pick", _("Bestehenden Ordner wählen …"))
+            dlg.add_response("new", _("Neu: Meine Dateien/{name}").format(name=name))
             dlg.set_response_appearance("new", Adw.ResponseAppearance.SUGGESTED)
             dlg.set_prefer_wide_layout(False)
             dlg.set_close_response("cancel")
@@ -1988,8 +1998,8 @@ class SyncPage(Adw.Bin):
             self.cfg["pairs"] = [p for p in self.cfg.get("pairs", []) if p["local"] != pair["local"]]
             self._save_cfg()
             self.refresh()
-        confirm_dialog(self.win, "Nicht mehr synchronisieren?",
-                       "Die Dateien bleiben lokal und in Proton Drive erhalten.", "Entfernen", go)
+        confirm_dialog(self.win, _("Nicht mehr synchronisieren?"),
+                       _("Die Dateien bleiben lokal und in Proton Drive erhalten."), _("Entfernen"), go)
 
     def _photo_toggled(self, row, _p, key):
         if self._updating:
@@ -2003,7 +2013,7 @@ class SyncPage(Adw.Bin):
         self.refresh()
 
     def pick_photo_dir(self):
-        d = Gtk.FileDialog(title="Ordner für Fotos")
+        d = Gtk.FileDialog(title=_("Ordner für Fotos"))
 
         def cb(dlg, res):
             try:
@@ -2034,25 +2044,25 @@ class SyncPage(Adw.Bin):
 
     def sync_now(self):
         self._systemctl("kill", "-s", "USR1", SYNC_UNIT)
-        self.win.toast("Synchronisation gestartet")
+        self.win.toast(_("Synchronisation gestartet"))
         GLib.timeout_add_seconds(2, lambda: self.refresh() and False)
 
 
 class RcloneLoginDialog(Adw.Dialog):
     """Delegate credential entry to rclone's interactive terminal prompt."""
     def __init__(self, win, on_done):
-        super().__init__(title="Sync-Anmeldung einrichten", content_width=480)
+        super().__init__(title=_("Sync-Anmeldung einrichten"), content_width=480)
         page = Adw.PreferencesPage()
         group = Adw.PreferencesGroup(
-            description="Führe im Terminal ~/.local/bin/rclone config aus. "
-            "Erstelle einen Remote namens nuclivo-proton mit Typ protondrive. "
-            "Gib deine Zugangsdaten ausschließlich an den interaktiven Eingabeaufforderungen ein. "
-            "rclone speichert Passwörter wiederherstellbar in seiner Konfiguration; "
-            "schütze diese Datei und teile sie niemals.")
-        button = Adw.ButtonRow(title="Befehl kopieren")
+            description=_("Führe im Terminal ~/.local/bin/rclone config aus. "
+              "Erstelle einen Remote namens nuclivo-proton mit Typ protondrive. "
+              "Gib deine Zugangsdaten ausschließlich an den interaktiven Eingabeaufforderungen ein. "
+              "rclone speichert Passwörter wiederherstellbar in seiner Konfiguration; "
+              "schütze diese Datei und teile sie niemals."))
+        button = Adw.ButtonRow(title=_("Befehl kopieren"))
         button.connect("activated", lambda *_: copy_text(self, "~/.local/bin/rclone config"))
         group.add(button)
-        done = Adw.ButtonRow(title="Einrichtung abgeschlossen")
+        done = Adw.ButtonRow(title=_("Einrichtung abgeschlossen"))
         done.connect("activated", lambda *_: (self.close(), on_done()))
         group.add(done)
         page.add(group)
@@ -2155,17 +2165,17 @@ def web_header(pane, fallback_title, on_back=None, on_detach=None):
     view.connect("notify::uri", lambda v, _p: title.set_subtitle(
         urllib.parse.urlparse(v.get_uri() or "").hostname or ""))
     if on_back:
-        back = Gtk.Button(icon_name="go-previous-symbolic", tooltip_text="Zurück zu den Dateien")
+        back = Gtk.Button(icon_name="go-previous-symbolic", tooltip_text=_("Zurück zu den Dateien"))
         back.connect("clicked", lambda *_: on_back())
         header.pack_start(back)
-    reload = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Neu laden")
+    reload = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Neu laden"))
     reload.connect("clicked", lambda *_: view.reload())
     header.pack_start(reload)
-    ext = Gtk.Button(icon_name="send-to-symbolic", tooltip_text="Im Browser öffnen")
+    ext = Gtk.Button(icon_name="send-to-symbolic", tooltip_text=_("Im Browser öffnen"))
     ext.connect("clicked", lambda *_: view.get_uri() and Gio.AppInfo.launch_default_for_uri(view.get_uri(), None))
     header.pack_end(ext)
     if on_detach:
-        det = Gtk.Button(icon_name="window-new-symbolic", tooltip_text="In eigenem Fenster öffnen")
+        det = Gtk.Button(icon_name="window-new-symbolic", tooltip_text=_("In eigenem Fenster öffnen"))
         det.connect("clicked", lambda *_: on_detach())
         header.pack_end(det)
     return header
@@ -2234,11 +2244,15 @@ class Window(Adw.ApplicationWindow):
         sb_header = Adw.HeaderBar()
         sb_header.set_title_widget(Adw.WindowTitle(title="Nuclivo"))
         menu = Gio.Menu()
-        menu.append("In Proton Drive (Web) öffnen", "win.open-web")
-        menu.append("Abmelden", "win.logout")
-        menu.append("Über Nuclivo", "win.about")
+        menu.append(_("In Proton Drive (Web) öffnen"), "win.open-web")
+        menu.append(_("Abmelden"), "win.logout")
+        language_menu = Gio.Menu()
+        language_menu.append("Deutsch", "win.language-de")
+        language_menu.append("English", "win.language-en")
+        menu.append_submenu(_("Sprache"), language_menu)
+        menu.append(_("Über Nuclivo"), "win.about")
         sb_header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
-                                          tooltip_text="Hauptmenü"))
+                                          tooltip_text=_("Hauptmenü")))
         self.transfer_btn = self._build_transfer_button()
         sb_header.pack_start(self.transfer_btn)
 
@@ -2246,17 +2260,17 @@ class Window(Adw.ApplicationWindow):
         self.sidebar.add_css_class("navigation-sidebar")
         self.sidebar.connect("row-selected", self._on_sidebar)
         entries = [("my-files", None), ("shared-by-me", None), ("shared-with-me", None), ("devices", None),
-                   ("photos", ("Fotos", "image-x-generic-symbolic")),
-                   ("albums", ("Alben", "folder-pictures-symbolic")),
+                   ("photos", (_("Fotos"), "image-x-generic-symbolic")),
+                   ("albums", (_("Alben"), "folder-pictures-symbolic")),
                    ("trash", None),
-                   ("sync", ("Synchronisation", "view-refresh-symbolic"))]
+                   ("sync", (_("Synchronisation"), "view-refresh-symbolic"))]
         for key, meta in entries:
             label, icon = (SECTIONS[key][1], SECTIONS[key][2]) if meta is None else meta
             box = Gtk.Box(spacing=12, margin_top=4, margin_bottom=4, margin_start=4, margin_end=4)
             box.append(Gtk.Image(icon_name=icon))
             box.append(Gtk.Label(label=label, xalign=0, hexpand=True))
             if key == "photos":
-                self.photo_spinner = Adw.Spinner(visible=False, tooltip_text="Vorschauen werden geladen")
+                self.photo_spinner = Adw.Spinner(visible=False, tooltip_text=_("Vorschauen werden geladen"))
                 box.append(self.photo_spinner)
             row = Gtk.ListBoxRow(child=box)
             row._key = key
@@ -2282,7 +2296,7 @@ class Window(Adw.ApplicationWindow):
         self.docs = DocsPage(self) if WebKit is not None else None
         if self.docs:
             self.content.add_named(self.docs, "docs")
-        self.content_page = Adw.NavigationPage(child=self.content, title="Meine Dateien")
+        self.content_page = Adw.NavigationPage(child=self.content, title=_("Meine Dateien"))
         self.split.set_content(self.content_page)
 
         bp = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 680sp"))
@@ -2299,7 +2313,7 @@ class Window(Adw.ApplicationWindow):
 
     # ---- sidebar
     def _sidebar_header(self, row, before):
-        titles = {"photos": "Fotos", "trash": None}
+        titles = {"photos": _("Fotos"), "trash": None}
         if row._key in ("photos", "trash") and before is not None:
             sep = Gtk.Separator(margin_top=6, margin_bottom=6, margin_start=12, margin_end=12)
             row.set_header(sep)
@@ -2318,15 +2332,15 @@ class Window(Adw.ApplicationWindow):
         elif key == "photos":
             self.content.set_visible_child_name("photos")
             self.photos.ensure_loaded()
-            self.content_page.set_title("Fotos")
+            self.content_page.set_title(_("Fotos"))
         elif key == "albums":
             self.content.set_visible_child_name("albums")
             self.albums.ensure_loaded()
-            self.content_page.set_title("Alben")
+            self.content_page.set_title(_("Alben"))
         elif key == "sync":
             self.content.set_visible_child_name("sync")
             self.sync.refresh()
-            self.content_page.set_title("Synchronisation")
+            self.content_page.set_title(_("Synchronisation"))
         self.split.set_show_content(True)
 
     # ---- transfers
@@ -2334,14 +2348,14 @@ class Window(Adw.ApplicationWindow):
         self.transfer_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.transfer_list.add_css_class("boxed-list")
         self.transfer_list.bind_model(self.transfers, self._transfer_row)
-        self.transfer_list.set_placeholder(Gtk.Label(label="Keine Übertragungen", margin_top=18,
+        self.transfer_list.set_placeholder(Gtk.Label(label=_("Keine Übertragungen"), margin_top=18,
                                                      margin_bottom=18, css_classes=["dim-label"]))
         sc = Gtk.ScrolledWindow(propagate_natural_height=True, max_content_height=420,
                                 hscrollbar_policy=Gtk.PolicyType.NEVER)
         sc.set_child(self.transfer_list)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, width_request=340)
         box.append(sc)
-        clear = Gtk.Button(label="Erledigte entfernen")
+        clear = Gtk.Button(label=_("Erledigte entfernen"))
         clear.add_css_class("flat")
         clear.connect("clicked", lambda *_: self._clear_transfers())
         box.append(clear)
@@ -2350,7 +2364,7 @@ class Window(Adw.ApplicationWindow):
         icon_stack.add_named(Gtk.Image(icon_name="folder-download-symbolic"), "idle")
         icon_stack.add_named(Adw.Spinner(), "busy")
         self.transfer_icon = icon_stack
-        btn = Gtk.MenuButton(child=icon_stack, popover=pop, tooltip_text="Übertragungen")
+        btn = Gtk.MenuButton(child=icon_stack, popover=pop, tooltip_text=_("Übertragungen"))
         return btn
 
     def _transfer_row(self, t):
@@ -2363,7 +2377,7 @@ class Window(Adw.ApplicationWindow):
             img.add_css_class("success" if t.state == "done" else "error")
             row.add_prefix(img)
         if getattr(t, "local", None) and t.state == "done":
-            b = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Ordner öffnen")
+            b = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Ordner öffnen"))
             b.add_css_class("flat")
             b.connect("clicked", lambda *_: open_local(t.local))
             row.add_suffix(b)
@@ -2388,9 +2402,9 @@ class Window(Adw.ApplicationWindow):
             if ok and isinstance(data, dict):
                 n, b = data.get("transferredItems", 0), data.get("transferredBytes", 0)
                 skipped = data.get("skippedItems", 0)
-                t.detail = f"{n} Element(e), {fmt_size(b)}" + (f", {skipped} übersprungen" if skipped else "")
+                t.detail = _("{count} Element(e), {size}").format(count=n, size=fmt_size(b)) + (_(", {count} übersprungen").format(count=skipped) if skipped else "")
             else:
-                t.detail = err or ("Fertig" if ok else "Fehlgeschlagen")
+                t.detail = err or (_("Fertig") if ok else _("Fehlgeschlagen"))
             pos = next((i for i in range(self.transfers.get_n_items()) if self.transfers.get_item(i) is t), None)
             if pos is not None:
                 self.transfers.splice(pos, 1, [t])
@@ -2433,6 +2447,8 @@ class Window(Adw.ApplicationWindow):
         add("open-web", lambda: Gio.AppInfo.launch_default_for_uri(WEB_URL, None), False)
         add("about", self.about, False)
         add("logout", self.logout, False)
+        add("language-de", lambda: self.set_language_choice("de"), False)
+        add("language-en", lambda: self.set_language_choice("en"), False)
 
         settings = load_settings()
         self.prefetch_action = Gio.SimpleAction.new_stateful(
@@ -2458,6 +2474,11 @@ class Window(Adw.ApplicationWindow):
         pf = self.prefetcher
         self.photo_spinner.set_visible(pf.running and not pf.paused)
 
+    def set_language_choice(self, language):
+        if language != get_language():
+            save_settings(language=language)
+            self.toast(_("Bitte Nuclivo neu starten, um die Sprache zu wechseln."))
+
     def set_prefetch(self, on):
         save_settings(prefetch=on)
         self.prefetch_action.set_state(GLib.Variant.new_boolean(on))
@@ -2467,7 +2488,7 @@ class Window(Adw.ApplicationWindow):
                 self.prefetcher.start()
             else:
                 self.photos.ensure_loaded(show=False)
-            self.toast("Vorschauen werden im Hintergrund geladen")
+            self.toast(_("Vorschauen werden im Hintergrund geladen"))
         else:
             self.prefetcher.stop()
 
@@ -2490,8 +2511,8 @@ class Window(Adw.ApplicationWindow):
             subprocess.run(["systemctl", "--user", "enable", "--now", SYNC_UNIT], capture_output=True)
         subprocess.run(["systemctl", "--user", "reload", SYNC_UNIT], capture_output=True)
         self.offline_action.set_state(GLib.Variant.new_boolean(on))
-        self.toast("Fotos werden offline gespeichert (gedrosselt)" if on else
-                   "Foto-Sync aus – bereits gespeicherte Fotos bleiben erhalten")
+        self.toast(_("Fotos werden offline gespeichert (gedrosselt)") if on else
+                   _("Foto-Sync aus – bereits gespeicherte Fotos bleiben erhalten"))
         self.sync.refresh()
 
     def clear_thumbs(self):
@@ -2502,10 +2523,10 @@ class Window(Adw.ApplicationWindow):
             for p in self.photos.photos:
                 p.texture, p.failed = None, False
             self.photos._show_month()
-            self.toast("Vorschau-Cache geleert")
-        confirm_dialog(self, "Vorschau-Cache leeren?",
-                       "Alle gespeicherten Vorschaubilder werden gelöscht und bei Bedarf neu geladen.",
-                       "Leeren", go)
+            self.toast(_("Vorschau-Cache geleert"))
+        confirm_dialog(self, _("Vorschau-Cache leeren?"),
+                       _("Alle gespeicherten Vorschaubilder werden gelöscht und bei Bedarf neu geladen."),
+                       _("Leeren"), go)
 
     def toast(self, msg):
         self.toasts.add_toast(Adw.Toast(title=GLib.markup_escape_text(msg), timeout=3))
@@ -2527,17 +2548,17 @@ class Window(Adw.ApplicationWindow):
         try:
             local = os.path.join(target, safe_name(node.name))
         except ValueError:
-            self.toast("Unsicherer Dateiname: Öffnen abgebrochen")
+            self.toast(_("Unsicherer Dateiname: Öffnen abgebrochen"))
             return
         private_dir(target)
         if os.path.islink(local):
-            self.toast("Symbolischer Link: Öffnen abgebrochen")
+            self.toast(_("Symbolischer Link: Öffnen abgebrochen"))
             return
         if os.path.exists(local) and node.size and os.path.getsize(local) == node.size:
             open_local(local)
             return
         private_dir(target)
-        self.toast(f"„{node.name}“ wird geöffnet …")
+        self.toast(_("„{name}“ wird geöffnet …").format(name=node.name))
 
         def done(ok, _d, err):
             if ok and os.path.exists(local):
@@ -2562,9 +2583,9 @@ class Window(Adw.ApplicationWindow):
 
         def go(uid):
             if uid:
-                self.open_docs(docs_create_url(kind, uid), "Neues Dokument" if kind == "doc" else "Neue Tabelle")
+                self.open_docs(docs_create_url(kind, uid), _("Neues Dokument") if kind == "doc" else _("Neue Tabelle"))
             else:
-                self.toast("Ordner konnte nicht ermittelt werden")
+                self.toast(_("Ordner konnte nicht ermittelt werden"))
 
         uid = self.browser.folder_uid()
         if uid:
@@ -2580,26 +2601,26 @@ class Window(Adw.ApplicationWindow):
             open_local(os.path.join(target, files[0]))
             return
         private_dir(target)
-        self.toast("Foto wird geladen …")
+        self.toast(_("Foto wird geladen …"))
 
         def done(ok, _d, err):
             files = [n for n in os.listdir(target) if os.path.isfile(os.path.join(target, n)) and not os.path.islink(os.path.join(target, n))]
             if files:
                 open_local(os.path.join(target, files[0]))
             elif ok:
-                self.toast("Foto konnte nicht geladen werden")
+                self.toast(_("Foto konnte nicht geladen werden"))
         self.start_transfer(photo.name or "Foto", "image-x-generic-symbolic",
                             ["photo", "download", "-c", "replace", f"{photo.source}/{photo.uid}", target], done)
 
     def download(self, node, folder):
         self.start_transfer(node.name, "folder-download-symbolic",
                             ["filesystem", "download", "-f", "rename", "-d", "merge", node.path, folder],
-                            lambda ok, d, e: self.toast(f"„{node.name}“ heruntergeladen" if ok
-                                                       else f"Download fehlgeschlagen: {e}"),
+                            lambda ok, d, e: self.toast(_("„{name}“ heruntergeladen").format(name=node.name) if ok
+                                                       else _("Download fehlgeschlagen: {error}").format(error=e)),
                             local=folder)
 
     def download_to(self, node):
-        d = Gtk.FileDialog(title="Zielordner wählen", initial_folder=Gio.File.new_for_path(downloads_dir()))
+        d = Gtk.FileDialog(title=_("Zielordner wählen"), initial_folder=Gio.File.new_for_path(downloads_dir()))
 
         def cb(dlg, res):
             try:
@@ -2614,11 +2635,11 @@ class Window(Adw.ApplicationWindow):
         self.start_transfer(names, "document-send-symbolic",
                             ["filesystem", "upload", "-f", "create-new-revision", "-d", "merge",
                              *[esc_local(p) for p in paths], parent],
-                            lambda ok, d, e: (self.toast("Hochgeladen" if ok else f"Upload fehlgeschlagen: {e}"),
+                            lambda ok, d, e: (self.toast(_("Hochgeladen") if ok else _("Upload fehlgeschlagen: {error}").format(error=e)),
                                               self.browser.invalidate(parent)))
 
     def pick_upload_files(self):
-        d = Gtk.FileDialog(title="Dateien hochladen")
+        d = Gtk.FileDialog(title=_("Dateien hochladen"))
         parent = self.browser.path
 
         def cb(dlg, res):
@@ -2630,7 +2651,7 @@ class Window(Adw.ApplicationWindow):
         d.open_multiple(self, None, cb)
 
     def pick_upload_folders(self):
-        d = Gtk.FileDialog(title="Ordner hochladen")
+        d = Gtk.FileDialog(title=_("Ordner hochladen"))
         parent = self.browser.path
 
         def cb(dlg, res):
@@ -2642,8 +2663,8 @@ class Window(Adw.ApplicationWindow):
         d.select_multiple_folders(self, None, cb)
 
     def upload_photos(self):
-        d = Gtk.FileDialog(title="Fotos hochladen")
-        flt = Gtk.FileFilter(name="Bilder und Videos")
+        d = Gtk.FileDialog(title=_("Fotos hochladen"))
+        flt = Gtk.FileFilter(name=_("Bilder und Videos"))
         flt.add_mime_type("image/*")
         flt.add_mime_type("video/*")
         store = Gio.ListStore(item_type=Gtk.FileFilter)
@@ -2656,9 +2677,9 @@ class Window(Adw.ApplicationWindow):
             except GLib.Error:
                 return
             paths = [f.get_path() for f in files if f.get_path()]
-            self.start_transfer(f"{len(paths)} Foto(s)", "image-x-generic-symbolic",
+            self.start_transfer(_("{count} Foto(s)").format(count=len(paths)), "image-x-generic-symbolic",
                                 ["photo", "upload", "-c", "rename", *[esc_local(p) for p in paths]],
-                                lambda ok, dd, e: (self.toast("Fotos hochgeladen" if ok else f"Fehler: {e}"),
+                                lambda ok, dd, e: (self.toast(_("Fotos hochgeladen") if ok else _("Fehler: {error}").format(error=e)),
                                                    self.photos.load()))
         d.open_multiple(self, None, cb)
 
@@ -2667,9 +2688,9 @@ class Window(Adw.ApplicationWindow):
 
         def make(name):
             cli(["filesystem", "create-folder", parent, name],
-                lambda ok, d, e: (self.toast(f"Ordner „{name}“ erstellt" if ok else f"Fehler: {e}"),
+                lambda ok, d, e: (self.toast(_("Ordner „{name}“ erstellt").format(name=name) if ok else _("Fehler: {error}").format(error=e)),
                                   self.browser.invalidate(parent)))
-        entry_dialog(self, "Neuer Ordner", "", "", "Erstellen", make)
+        entry_dialog(self, _("Neuer Ordner"), "", "", _("Erstellen"), make)
 
     def rename(self, node):
         parent = self.browser.path
@@ -2678,21 +2699,21 @@ class Window(Adw.ApplicationWindow):
             if name == node.name:
                 return
             cli(["filesystem", "rename", node.path, name],
-                lambda ok, d, e: (self.toast("Umbenannt" if ok else f"Fehler: {e}"), self.browser.invalidate(parent)))
-        entry_dialog(self, "Umbenennen", "", node.name, "Umbenennen", go)
+                lambda ok, d, e: (self.toast(_("Umbenannt") if ok else _("Fehler: {error}").format(error=e)), self.browser.invalidate(parent)))
+        entry_dialog(self, _("Umbenennen"), "", node.name, _("Umbenennen"), go)
 
     def move_copy(self, node, mode):
         parent = self.browser.path
-        verb = "Verschieben" if mode == "move" else "Kopieren"
+        verb = _("Verschieben") if mode == "move" else _("Kopieren")
 
         def go(target):
             if mode == "move" and target == parent:
                 return
             cli(["filesystem", mode, node.path, target],
-                lambda ok, d, e: (self.toast(f"„{node.name}“ {'verschoben' if mode == 'move' else 'kopiert'}"
-                                             if ok else f"Fehler: {e}"),
+                lambda ok, d, e: (self.toast(_("„{name}“ {action}").format(name=node.name, action=_("verschoben") if mode == "move" else _("kopiert"))
+                                             if ok else _("Fehler: {error}").format(error=e)),
                                   self.browser.cache.pop(target, None), self.browser.invalidate(parent)))
-        FolderPicker(self, f"{verb} nach", f"Hierher {verb.lower()}", go,
+        FolderPicker(self, _("{action} nach").format(action=verb), _("Hierher {action}").format(action=verb.lower()), go,
                      exclude_uid=node.uid).present(self)
 
     def trash(self, node):
@@ -2700,67 +2721,67 @@ class Window(Adw.ApplicationWindow):
 
         def undo(*_):
             cli(["filesystem", "restore", f"/trash/{node.uid}"],
-                lambda ok, d, e: (self.toast("Wiederhergestellt" if ok else f"Fehler: {e}"),
+                lambda ok, d, e: (self.toast(_("Wiederhergestellt") if ok else _("Fehler: {error}").format(error=e)),
                                   self.browser.invalidate(parent)))
 
         def done(ok, _d, err):
             if ok:
-                t = Adw.Toast(title=GLib.markup_escape_text(f"„{node.name}“ im Papierkorb"),
-                              button_label="Rückgängig", timeout=6)
+                t = Adw.Toast(title=GLib.markup_escape_text(_("„{name}“ im Papierkorb").format(name=node.name)),
+                              button_label=_("Rückgängig"), timeout=6)
                 t.connect("button-clicked", undo)
                 self.toasts.add_toast(t)
                 self.browser.cache.pop("/trash", None)
             else:
-                self.toast(f"Fehler: {err}")
+                self.toast(_("Fehler: {error}").format(error=err))
             self.browser.invalidate(parent)
         cli(["filesystem", "trash", node.path], done)
 
     def restore(self, node):
         cli(["filesystem", "restore", node.path],
-            lambda ok, d, e: (self.toast("Wiederhergestellt" if ok else f"Fehler: {e}"),
+            lambda ok, d, e: (self.toast(_("Wiederhergestellt") if ok else _("Fehler: {error}").format(error=e)),
                               self.browser.cache.clear(), self.browser.invalidate("/trash")))
 
     def delete(self, node):
-        confirm_dialog(self, "Endgültig löschen?", f"„{node.name}“ lässt sich danach nicht wiederherstellen.",
-                       "Löschen", lambda: cli(["filesystem", "delete", node.path],
-                                              lambda ok, d, e: (self.toast("Gelöscht" if ok else f"Fehler: {e}"),
+        confirm_dialog(self, _("Endgültig löschen?"), _("„{name}“ lässt sich danach nicht wiederherstellen.").format(name=node.name),
+                       _("Löschen"), lambda: cli(["filesystem", "delete", node.path],
+                                              lambda ok, d, e: (self.toast(_("Gelöscht") if ok else _("Fehler: {error}").format(error=e)),
                                                                 self.browser.invalidate("/trash"))))
 
     def leave_share(self, node):
-        confirm_dialog(self, "Freigabe verlassen?", f"Du verlierst den Zugriff auf „{node.name}“.", "Verlassen",
+        confirm_dialog(self, _("Freigabe verlassen?"), _("Du verlierst den Zugriff auf „{name}“.").format(name=node.name), _("Verlassen"),
                        lambda: cli(["sharing", "leave", node.path],
-                                   lambda ok, d, e: (self.toast("Freigabe verlassen" if ok else f"Fehler: {e}"),
+                                   lambda ok, d, e: (self.toast(_("Freigabe verlassen") if ok else _("Fehler: {error}").format(error=e)),
                                                      self.browser.invalidate())))
 
     def album_rename(self, path):
         old = path.rsplit("/", 1)[-1]
-        entry_dialog(self, "Album umbenennen", "", old, "Umbenennen",
+        entry_dialog(self, _("Album umbenennen"), "", old, _("Umbenennen"),
                      lambda name: cli(["album", "update", "-n", name, path],
-                                      lambda ok, d, e: (self.toast("Umbenannt" if ok else f"Fehler: {e}"),
+                                      lambda ok, d, e: (self.toast(_("Umbenannt") if ok else _("Fehler: {error}").format(error=e)),
                                                         self.albums.load())))
 
     def album_delete(self, path):
-        confirm_dialog(self, "Album löschen?", "Die Fotos bleiben in deiner Foto-Mediathek erhalten.", "Löschen",
+        confirm_dialog(self, _("Album löschen?"), _("Die Fotos bleiben in deiner Foto-Mediathek erhalten."), _("Löschen"),
                        lambda: cli(["album", "delete", "-s", path],
-                                   lambda ok, d, e: (self.toast("Album gelöscht" if ok else f"Fehler: {e}"),
+                                   lambda ok, d, e: (self.toast(_("Album gelöscht") if ok else _("Fehler: {error}").format(error=e)),
                                                      self.albums.load())))
 
     def login(self):
-        self.toast("Anmeldung im Browser wird geöffnet …")
-        cli(["auth", "login"], lambda ok, d, e: (self.toast("Angemeldet" if ok else f"Anmeldung fehlgeschlagen: {e}"),
+        self.toast(_("Anmeldung im Browser wird geöffnet …"))
+        cli(["auth", "login"], lambda ok, d, e: (self.toast(_("Angemeldet") if ok else _("Anmeldung fehlgeschlagen: {error}").format(error=e)),
                                                  self.browser.reload()), json_out=False)
 
     def logout(self):
-        confirm_dialog(self, "Abmelden?", "Die Proton Drive CLI wird auf diesem Gerät abgemeldet. "
-                       "Der Sync-Dienst funktioniert davon unabhängig weiter.", "Abmelden",
-                       lambda: cli(["auth", "logout"], lambda ok, d, e: (self.toast("Abgemeldet"),
+        confirm_dialog(self, _("Abmelden?"), _("Die Proton Drive CLI wird auf diesem Gerät abgemeldet. "
+                       "Der Sync-Dienst funktioniert davon unabhängig weiter."), _("Abmelden"),
+                       lambda: cli(["auth", "logout"], lambda ok, d, e: (self.toast(_("Abgemeldet")),
                                                                          self.browser.reload()), json_out=False))
 
     def about(self):
         about = Adw.AboutDialog(application_name="Nuclivo", application_icon="folder-remote",
-                                version="0.1", developer_name="Gebaut mit Claude",
-                                comments="Oberfläche für die offizielle Proton Drive CLI. "
-                                         "Kein offizielles Proton-Produkt.",
+                                version="0.1", developer_name=_("Gebaut mit Claude"),
+                                comments=_("Oberfläche für die offizielle Proton Drive CLI. "
+                                           "Kein offizielles Proton-Produkt."),
                                 license_type=Gtk.License.UNKNOWN)
         about.present(self)
 
