@@ -2,12 +2,6 @@
 
 An unofficial Linux GUI for the Proton Drive CLI, built with Python, GTK 4 and libadwaita. German and English can be selected from the app's main menu under **Sprache / Language**; restart the app to apply a change. By default, Nuclivo follows the system language (German or English). Nuclivo is independent of Proton.
 
-Browse and manage files, upload and download, manage sharing and albums, browse photos, and open Proton Docs through optional WebKitGTK integration. An optional daemon synchronizes folder pairs using rclone bisync and downloads/uploads photos through the official Proton Drive CLI.
-
-**Experimental:** this source snapshot has received a targeted security review. Authentication, embedded Docs and bidirectional sync still need end-to-end validation using a disposable account and test folders before a stable release. Windows is not supported by this implementation.
-
-**AI-generated code and data risk:** Nuclivo was entirely vibe coded with AI assistance. I cannot guarantee its security or the protection of your data. Use a disposable account and non-sensitive test files when evaluating it; keep backups before trying synchronization.
-
 ## Screenshots
 
 Captured from isolated demo profiles without a Proton account or personal files. The CLI is intentionally absent, so these images show the setup and sync controls rather than connected Drive content.
@@ -15,6 +9,20 @@ Captured from isolated demo profiles without a Proton account or personal files.
 ![English welcome dialog](docs/screenshots/nuclivo-en.png)
 
 ![German sync settings](docs/screenshots/nuclivo-de.png)
+
+## Features
+
+- Browse My Files, shared files, devices and trash; search and sort within a folder.
+- Upload files and folders, including drag and drop; download, rename, move, copy, restore and delete items.
+- Create folders, Proton Docs and spreadsheets; manage sharing links and photo albums.
+- Browse photos, load previews in the background and optionally keep the photo library available offline.
+- Open Proton Docs in an embedded view when WebKitGTK is installed.
+- Optionally synchronize folder pairs in both directions with rclone and upload/download photos with the sync daemon. Synchronization remains experimental.
+- Choose German or English from the app menu.
+
+**Experimental:** this source snapshot has received a targeted security review. Authentication, embedded Docs and bidirectional sync still need end-to-end validation using a disposable account and test folders before a stable release. Windows is not supported by this implementation.
+
+**AI-generated code and data risk:** Nuclivo was entirely vibe coded with AI assistance. I cannot guarantee its security or the protection of your data. Use a disposable account and non-sensitive test files when evaluating it; keep backups before trying synchronization.
 
 ## Roadmap
 
