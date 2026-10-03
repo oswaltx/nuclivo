@@ -18,7 +18,7 @@ Reviewed the installed GUI and daemon source and prepared a separate hardened sn
 
 ## Remaining limitations and release work
 
-- This is a source review and six regression tests, not a penetration test or security certification. Proton CLI, rclone, GTK, WebKit and image decoders were not independently audited, and a full vulnerability scan of their installed builds has not been performed.
+- This is a source review and nine regression tests, not a penetration test or security certification. Proton CLI, rclone, GTK, WebKit and image decoders were not independently audited, and a full vulnerability scan of their installed builds has not been performed.
 - Download paths are also controlled by upstream CLI code. The app validates names it handles, but cannot sandbox all filesystem writes performed by the CLI. A disposable-account integration test is required for malformed names and CLI download behavior.
 - Logout affects only the CLI. Embedded WebKit authentication and rclone sessions are separate; downloaded plaintext/cache survives. Implement complete account removal before claiming a single logout revokes everything.
 - rclone stores recoverable credentials in its config. Existing config permissions and encrypted storage setup need user/environment validation. The project does not ship that configuration.
@@ -27,6 +27,6 @@ Reviewed the installed GUI and daemon source and prepared a separate hardened sn
 - Remote CLI names with escaped slashes/backslashes cannot be mapped faithfully into rclone paths and are rejected. Other malformed CLI output may still cause denial of service/errors.
 - Failed photo download batches can leave a private temporary directory for recovery/inspection; cleanup after crashes remains future work.
 - The GUI uses the existing user profile by default. Do not launch it for tests without isolating XDG directories if you want to avoid affecting normal settings/sessions.
-- Choose a source license before public distribution. The original About dialog says MIT, but the original files did not include an actual license grant.
+- This snapshot is licensed under GPL-3.0-only. The original About dialog said MIT, but the original files did not include an actual license grant.
 
 Primary references: [rclone config create](https://rclone.org/commands/rclone_config_create/), [rclone Proton Drive](https://rclone.org/protondrive/), [official Proton Drive CLI](https://github.com/ProtonDriveApps/sdk/tree/main/cli).

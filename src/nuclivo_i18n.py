@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """English UI translations. German remains the source language."""
 import os
 

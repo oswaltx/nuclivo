@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Filesystem and URL boundaries shared by the GUI and sync daemon."""
 import datetime
 import json

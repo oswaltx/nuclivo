@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Nuclivo – a GTK4/libadwaita front end for the official Proton Drive CLI."""
 import gi
 
@@ -2782,7 +2783,7 @@ class Window(Adw.ApplicationWindow):
                                 version="0.1", developer_name=_("Gebaut mit Claude"),
                                 comments=_("Oberfläche für die offizielle Proton Drive CLI. "
                                            "Kein offizielles Proton-Produkt."),
-                                license_type=Gtk.License.UNKNOWN)
+                                license_type=Gtk.License.GPL_3_0_ONLY)
         about.present(self)
 
 

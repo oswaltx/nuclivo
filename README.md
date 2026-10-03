@@ -22,7 +22,11 @@ I also want to build a more practical Proton Drive desktop app for Windows, incl
 
 ## Contributing
 
-Contributions are welcome, especially independent security audits and reviews of authentication, local data handling, and synchronization. Please use issues or pull requests for ordinary feedback. If you find a vulnerability that could expose accounts or files, report it privately through GitHub's vulnerability reporting feature when available, so it can be fixed before public disclosure.
+Contributions are welcome, especially independent security audits and reviews of authentication, local data handling, and synchronization. Contributions to Nuclivo are distributed under GPL-3.0-only. Please use issues or pull requests for ordinary feedback. If you find a vulnerability that could expose accounts or files, report it privately through GitHub's vulnerability reporting feature when available, so it can be fixed before public disclosure.
+
+## License
+
+Copyright (C) 2026 oswaltx. Unless a file says otherwise, this repository is licensed under the [GNU General Public License, version 3 only](LICENSE) (`GPL-3.0-only`). Anyone may use it commercially. If someone distributes a modified version, they must provide the corresponding source code to its recipients under the same license. Changes kept private do not have to be published. The Proton Drive CLI, rclone and system libraries retain their own licenses.
 
 ## Requirements
 
@@ -58,4 +62,4 @@ python3 -m unittest discover -s tests -v
 python3 -m compileall -q src
 ```
 
-See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for findings and the limits of this review. A license decision and a live integration test remain before publication as a supported release.
+See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for findings and the limits of this review. A live integration test remains before publication as a supported release.

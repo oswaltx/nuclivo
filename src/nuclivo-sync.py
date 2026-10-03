@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Nuclivo sync daemon.
 
 * Folder pairs: two-way sync with `rclone bisync`, triggered by local inotify
