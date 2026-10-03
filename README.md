@@ -6,6 +6,16 @@ Browse and manage files, upload and download, manage sharing and albums, browse 
 
 **Experimental:** this source snapshot has received a targeted security review. Authentication, embedded Docs and bidirectional sync still need end-to-end validation using a disposable account and test folders before a stable release. Windows is not supported by this implementation.
 
+**AI-generated code and data risk:** Nuclivo was entirely vibe coded with AI assistance. I cannot guarantee its security or the protection of your data. Use a disposable account and non-sensitive test files when evaluating it; keep backups before trying synchronization.
+
+## Screenshots
+
+Captured from isolated demo profiles without a Proton account or personal files. The CLI is intentionally absent, so these images show the setup and sync controls rather than connected Drive content.
+
+![English welcome dialog](docs/screenshots/nuclivo-en.png)
+
+![German sync settings](docs/screenshots/nuclivo-de.png)
+
 ## Roadmap
 
 I also want to build a more practical Proton Drive desktop app for Windows, including photo synchronization. This is a plan, not a feature of the current Linux build.

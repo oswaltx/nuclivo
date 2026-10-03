@@ -258,7 +258,7 @@ class Syncer:
                 log.info(_("%d lokale Foto(s) werden hochgeladen"), len(pending))
             for i in range(0, len(pending), 20):
                 chunk = pending[i:i + 20]
-                escaped = [fp.translate(str.maketrans({c: "\\" + c for c in "[]{}*?"})) for fp, _ in chunk]
+                escaped = [fp.translate(str.maketrans({c: "\\" + c for c in "[]{}*?"})) for fp, signature in chunk]
                 ok, res, e = self.cli("photo", "upload", "-c", "skip", *escaped)
                 if ok and not (res or {}).get("failedItems"):
                     for fp, sig in chunk:
@@ -269,7 +269,7 @@ class Syncer:
                 save()
             if pending and not err:
                 # Uploaded photos show up in the timeline; record them so they are not downloaded again.
-                ok, timeline, _ = self.cli("photo", "timeline")
+                ok, timeline, timeline_error = self.cli("photo", "timeline")
                 if ok and isinstance(timeline, list):
                     known = set(have) | skipped
                     recent = [x["nodeUid"] for x in timeline if x["nodeUid"] not in known]

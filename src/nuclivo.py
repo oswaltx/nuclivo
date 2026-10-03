@@ -1373,7 +1373,7 @@ class PhotosPage(Adw.Bin):
                                     margin_top=8, margin_bottom=8, margin_start=14, margin_end=14)
         self.pf_row, self.pf_label, self.pf_bar, self.pf_btn = self._progress_row(
             "folder-download-symbolic", self._pf_button)
-        self.off_row, self.off_label, self.off_bar, _ = self._progress_row("drive-harddisk-symbolic", None)
+        self.off_row, self.off_label, self.off_bar, self.off_btn = self._progress_row("drive-harddisk-symbolic", None)
         self.progress_box.append(self.pf_row)
         self.progress_box.append(self.off_row)
 
@@ -1904,7 +1904,7 @@ class SyncPage(Adw.Bin):
         self.photo_existing.set_active(bool(ph.get("download_existing")))
         self.photo_up.set_active(bool(ph.get("upload")))
         pdir = ph.get("local") or "~/Bilder/Proton Fotos"
-        text, _ = self._status_suffix(status.get("photos", {})) if ph.get("enabled") else ("", None)
+        text, status_icon = self._status_suffix(status.get("photos", {})) if ph.get("enabled") else ("", None)
         self.photo_dir.set_subtitle(GLib.markup_escape_text(pdir.replace(home, "~") + (f" · {text}" if text else "")))
         for r in self.photo_rows:
             r.set_sensitive(bool(ph.get("enabled")))
